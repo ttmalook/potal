@@ -1,0 +1,8 @@
+{
+  "issue_type": "cookie_missing_http_only",
+  "category": "http_header",
+  "target": "lab-http-drill",
+  "focus_header": "Set-Cookie (HttpOnly)",
+  "operator_action": "Set-Cookie 에 HttpOnly 속성 추가",
+  "health_check": "GET / → HTTP 200 + 본문 'Lab Drill Site' (리다이렉트 이슈는 301→https)"
+}

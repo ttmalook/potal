@@ -1,0 +1,8 @@
+{
+  "issue_type": "x_content_type_options_incorrect_v2",
+  "category": "http_header",
+  "target": "lab-http-drill",
+  "focus_header": "X-Content-Type-Options",
+  "operator_action": "add_header X-Content-Type-Options nosniff 적용 후 reload",
+  "health_check": "GET / → HTTP 200 + 본문 'Lab Drill Site' (리다이렉트 이슈는 301→https)"
+}

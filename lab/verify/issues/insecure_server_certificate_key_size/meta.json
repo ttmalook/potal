@@ -1,0 +1,8 @@
+{
+  "issue_type": "insecure_server_certificate_key_size",
+  "category": "tls",
+  "target": "lab-tls-drill",
+  "focus": "public-key-size",
+  "operator_action": "RSA1024 to RSA2048",
+  "health_check": "조치 인증서로 https 200 (curl -k)"
+}

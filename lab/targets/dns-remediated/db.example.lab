@@ -1,0 +1,22 @@
+$ORIGIN example.lab.
+$TTL 3600
+@   IN SOA ns.example.lab. admin.example.lab. (
+        2026070203 ; serial
+        7200       ; refresh
+        3600       ; retry
+        1209600    ; expire
+        3600 )     ; minimum
+@       IN NS  ns.example.lab.
+ns      IN A   192.0.2.2
+@       IN A   192.0.2.10
+; 조치: 루트 SPF + DMARC 레코드 추가
+@       IN TXT "v=spf1 include:_spf.example.com -all"
+_dmarc  IN TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@example.lab"
+; 조치: 올바른 형식의 SPF (spf_record_malformed)
+mal        IN TXT "v=spf1 include:_spf.example.com -all"
+; 조치: DMARC 정책 상향 none→quarantine (dmarc_contains_none)
+_dmarc.pn  IN TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@example.lab"
+; 조치: 서브도메인 DMARC 정책 상향 (subdomain_dmarc_contains_none)
+_dmarc.sub IN TXT "v=DMARC1; p=quarantine; rua=mailto:dmarc@example.lab"
+; 조치: 강한 DKIM 키(1024비트+) — dkim_weak_signature / dkim_insufficient_key_length
+sel._domainkey IN TXT "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQD9AGBf8jCVebFZr/zRoUB9nePwlBF0W1RREZREaUyS7x86ZlJzk5HDjARLIix3kpwcc1kXGCVpgGvgtx7HQj7DP7uNZ/EssXxbhCYjgS6rMfDtre7e56R7gP+rQPWJs+pMHwkiMiIcpAanRAcUodLBPbWtVILnmvbB9jxoce8Z1wIDAQAB"

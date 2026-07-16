@@ -1,0 +1,8 @@
+{
+  "issue_type": "csp_too_broad_v2",
+  "category": "http_header",
+  "target": "lab-http-drill",
+  "focus_header": "Content-Security-Policy",
+  "operator_action": "과도한 default-src * → default-src 'self' 로 축소",
+  "health_check": "GET / → HTTP 200 + 본문 'Lab Drill Site' (리다이렉트 이슈는 301→https)"
+}

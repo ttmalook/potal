@@ -1,0 +1,17 @@
+{
+  "name": "ssc-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "SSC Partner Portal — SecurityScorecard API read-only smoke-test backend (token은 서버에서만 관리)",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

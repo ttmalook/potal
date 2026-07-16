@@ -1,0 +1,19 @@
+# =====================================================================
+# SSC Partner Portal — Backend (Express, 내부 8787)
+#   build context: ./backend
+#   외부 미노출. nginx(web) 컨테이너가 /api 를 이 서비스로 프록시.
+# =====================================================================
+FROM node:24-alpine
+
+WORKDIR /app
+
+# 의존성 (락파일 기준 재현 설치, prod only)
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY . .
+
+ENV NODE_ENV=production
+EXPOSE 8787
+
+CMD ["node", "src/server.js"]

@@ -1,0 +1,8 @@
+{
+  "issue_type": "tlscert_expired",
+  "category": "tls",
+  "target": "lab-tls-drill",
+  "focus": "cert-validity",
+  "operator_action": "expired-cert to valid-365d",
+  "health_check": "조치 인증서로 https 200 (curl -k)"
+}

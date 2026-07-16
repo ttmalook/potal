@@ -1,0 +1,8 @@
+{
+  "issue_type": "tlscert_revoked",
+  "category": "tls",
+  "target": "lab-tls-drill",
+  "focus": "certificate-revocation",
+  "operator_action": "CRL 폐지 인증서 -> 신규(비폐지) 인증서 재발급",
+  "health_check": "verify -crl_check OK + https 200"
+}

@@ -1,0 +1,8 @@
+{
+  "issue_type": "tlscert_self_signed",
+  "category": "tls",
+  "target": "lab-tls-drill",
+  "focus": "cert-issuer",
+  "operator_action": "self-signed to CA-signed",
+  "health_check": "조치 인증서로 https 200 (curl -k)"
+}

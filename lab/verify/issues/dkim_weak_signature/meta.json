@@ -1,0 +1,7 @@
+{
+  "issue_type": "dkim_weak_signature",
+  "category": "dns",
+  "target": "lab-dns-drill",
+  "focus": "DKIM h= 해시",
+  "operator_action": "DKIM 레코드 h=sha1 -> h=sha256"
+}

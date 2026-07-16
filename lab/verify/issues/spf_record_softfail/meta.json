@@ -1,0 +1,7 @@
+{
+  "issue_type": "spf_record_softfail",
+  "category": "dns",
+  "target": "lab-dns-drill",
+  "focus": "SPF 정책",
+  "operator_action": "~all(softfail) -> -all(hardfail)"
+}

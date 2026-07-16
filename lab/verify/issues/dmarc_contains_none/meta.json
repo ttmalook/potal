@@ -1,0 +1,7 @@
+{
+  "issue_type": "dmarc_contains_none",
+  "category": "dns",
+  "target": "lab-dns-drill",
+  "focus": "DMARC 정책",
+  "operator_action": "p=none -> p=reject"
+}

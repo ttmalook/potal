@@ -1,0 +1,7 @@
+{
+  "issue_type": "ssh_weak_cipher",
+  "category": "ssh",
+  "target": "lab-ssh-drill",
+  "focus": "sshd Ciphers",
+  "operator_action": "약한 cipher(3des-cbc/CBC) 제거 -> AEAD/CTR 만"
+}

@@ -1,0 +1,7 @@
+{
+  "issue_type": "service_cassandra",
+  "category": "network",
+  "target": "lab-net-drill",
+  "focus": "tcp/9042 (Cassandra)",
+  "operator_action": "불필요 서비스(tcp/9042) 중지/방화벽 차단"
+}

@@ -1,0 +1,7 @@
+{
+  "issue_type": "dkim_insufficient_key_length",
+  "category": "dns",
+  "target": "lab-dns-drill",
+  "focus": "DKIM 공개키 길이",
+  "operator_action": "DKIM RSA 512 -> 2048 재발급"
+}

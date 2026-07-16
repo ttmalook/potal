@@ -1,0 +1,7 @@
+{
+  "issue_type": "spf_record_missing",
+  "category": "dns",
+  "target": "lab-dns-drill",
+  "focus": "SPF TXT",
+  "operator_action": "SPF 없음 -> v=spf1 -all 게시"
+}

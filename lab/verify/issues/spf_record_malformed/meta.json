@@ -1,0 +1,7 @@
+{
+  "issue_type": "spf_record_malformed",
+  "category": "dns",
+  "target": "lab-dns-drill",
+  "focus": "SPF 형식",
+  "operator_action": "잘못된 SPF -> 유효한 SPF 재작성"
+}

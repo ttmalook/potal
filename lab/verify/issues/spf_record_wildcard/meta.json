@@ -1,0 +1,7 @@
+{
+  "issue_type": "spf_record_wildcard",
+  "category": "dns",
+  "target": "lab-dns-drill",
+  "focus": "SPF 정책",
+  "operator_action": "+all(전체 허용) -> -all"
+}

@@ -1,0 +1,7 @@
+{
+  "issue_type": "dmarc_record_missing",
+  "category": "dns",
+  "target": "lab-dns-drill",
+  "focus": "DMARC TXT",
+  "operator_action": "DMARC 없음 -> v=DMARC1; p=reject 게시"
+}

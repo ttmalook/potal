@@ -1,0 +1,8 @@
+{
+  "issue_type": "insecure_https_redirect_pattern_v2",
+  "category": "http_header",
+  "target": "lab-http-drill",
+  "focus_header": "Location (redirect)",
+  "operator_action": "http 302 리다이렉트 → https 301 강제",
+  "health_check": "GET / → HTTP 200 + 본문 'Lab Drill Site' (리다이렉트 이슈는 301→https)"
+}

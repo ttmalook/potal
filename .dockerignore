@@ -1,0 +1,13 @@
+# web(nginx) 이미지 빌드 컨텍스트에서 제외 — SPA 빌드에 불필요/민감 항목
+node_modules
+**/node_modules
+dist
+.vite
+backend
+docs
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.log

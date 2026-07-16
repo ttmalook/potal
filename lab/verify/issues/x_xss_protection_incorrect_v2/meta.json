@@ -1,0 +1,8 @@
+{
+  "issue_type": "x_xss_protection_incorrect_v2",
+  "category": "http_header",
+  "target": "lab-http-drill",
+  "focus_header": "X-XSS-Protection",
+  "operator_action": "add_header X-XSS-Protection 1; mode=block",
+  "health_check": "GET / → HTTP 200 + 본문 'Lab Drill Site' (리다이렉트 이슈는 301→https)"
+}

@@ -1,0 +1,63 @@
+/* 외부 스타일시트(같은 출처) — CSP default-src 'self' 에서도 허용됨.
+   (인라인 <style>은 'unsafe-inline' 없으면 차단되므로 CSS는 외부 파일로 둔다) */
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px; background: #eef2f7; color: #0f172a;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.page { max-width: 640px; margin: 0 auto; padding-bottom: 6px; }
+
+/* 방명록 앱 UI */
+.gb { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+.gb-head { padding: 14px 18px; font-size: 17px; font-weight: 800; color: #0f172a;
+  background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+.gb-head .gb-sub { font-size: 12px; font-weight: 600; color: #94a3b8; margin-left: 6px; }
+
+.posts { padding: 6px 14px; }
+.post { padding: 12px 6px; border-bottom: 1px solid #f1f5f9; }
+.post:last-child { border-bottom: none; }
+.p-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.p-name { font-weight: 700; font-size: 13.5px; color: #0f172a; }
+.p-date { font-size: 12px; color: #94a3b8; }
+.p-badge { font-size: 11px; font-weight: 700; color: #b91c1c; background: #fee2e2; padding: 1px 7px; border-radius: 999px; }
+.p-body { font-size: 13.5px; color: #334155; line-height: 1.55; word-break: break-all; }
+.post-attacker { background: #fffdf5; }
+
+.hacked { color: #b91c1c; font-weight: 700; }
+.hacked code { background: #fee2e2; color: #7f1d1d; padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+/* 조치: 공격자 글이 평범한 무해 텍스트로 남는 모습 */
+.safe-comment { color: #334155; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; }
+.safe-tag { margin-top: 7px; display: inline-block; font-size: 11.5px; font-weight: 700; color: #15803d;
+  background: #dcfce7; padding: 3px 10px; border-radius: 999px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+
+/* 글쓰기 폼 (공격자 입력 지점) */
+.gb-form { border-top: 1px solid #e2e8f0; background: #f8fafc; padding: 14px 18px; }
+.gb-form-title { font-size: 13px; font-weight: 700; color: #334155; margin-bottom: 10px; }
+.gb-form-title .f-hint { font-weight: 500; color: #94a3b8; }
+.f-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.f-row label { width: 40px; font-size: 12.5px; color: #64748b; padding-top: 6px; }
+.f-row input, .f-row textarea { flex: 1; border: 1px solid #cbd5e1; border-radius: 6px;
+  padding: 6px 9px; font-size: 12.5px; background: #fff; color: #0f172a;
+  font-family: ui-monospace, Menlo, Consolas, monospace; resize: none; }
+.f-actions { text-align: right; }
+.f-actions button { background: #94a3b8; color: #fff; border: none; border-radius: 6px;
+  padding: 6px 16px; font-size: 13px; font-weight: 600; }
+
+/* 증표(evidence marker) — 취약/조치가 한눈에 다르게 보이도록 크고 대비 강하게 */
+.verdict { margin: 14px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; border-radius: 10px; }
+.verdict-pending { background: #f1f5f9; color: #64748b; }
+.verdict-vuln { background: #fef2f2; border-left: 8px solid #dc2626; }
+.verdict-safe { background: #f0fdf4; border-left: 8px solid #16a34a; }
+.v-chip { flex: 0 0 auto; font-weight: 800; font-size: 15px; padding: 7px 13px; border-radius: 10px; white-space: nowrap; }
+.verdict-vuln .v-chip { background: #dc2626; color: #fff; }
+.verdict-safe .v-chip { background: #16a34a; color: #fff; }
+.v-body { font-size: 13.5px; line-height: 1.6; }
+.verdict-vuln .v-body { color: #7f1d1d; }
+.verdict-safe .v-body { color: #14532d; }
+.v-body code { background: rgba(15,23,42,.08); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+
+/* 실제 브라우저 콘솔(개발자도구) 패널 — CSP 차단의 진짜 증거(팝업 아님, 콘솔 로그) */
+.devconsole { margin: 16px 14px 20px; border: 1px solid #1f2937; border-radius: 10px; overflow: hidden;
+  font-family: ui-monospace, Menlo, Consolas, monospace; }
+.dc-bar { background: #111827; color: #cbd5e1; font-size: 12px; font-weight: 700; padding: 11px 14px;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.dc-line { background: #0b0f17; color: #fca5a5; font-size: 12px; line-height: 1.9; padding: 14px 16px;
+  white-space: pre-wrap; word-break: break-word; border-top: 1px solid #1f2937; }

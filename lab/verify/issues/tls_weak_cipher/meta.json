@@ -1,0 +1,8 @@
+{
+  "issue_type": "tls_weak_cipher",
+  "category": "tls",
+  "target": "lab-tls-drill",
+  "focus": "ssl_ciphers",
+  "operator_action": "비PFS/취약 cipher 제거 → ECDHE-*-GCM 만 허용",
+  "health_check": "TLSv1.2 ECDHE-GCM 로 https 200"
+}

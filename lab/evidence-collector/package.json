@@ -1,0 +1,12 @@
+{
+  "name": "lab-evidence-collector",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Playwright 기반 Before/After 증적 수집기 (http_header 스캐폴드)",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^4.21.2",
+    "playwright": "1.48.0"
+  }
+}

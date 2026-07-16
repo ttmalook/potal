@@ -1,0 +1,7 @@
+{
+  "issue_type": "subdomain_dmarc_contains_none",
+  "category": "dns",
+  "target": "lab-dns-drill",
+  "focus": "하위도메인 DMARC",
+  "operator_action": "sp=none/하위 p=none -> p=reject"
+}

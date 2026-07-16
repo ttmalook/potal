@@ -1,0 +1,8 @@
+{
+  "issue_type": "tls_weak_protocol",
+  "category": "tls",
+  "target": "lab-tls-drill",
+  "focus": "ssl_protocols",
+  "operator_action": "ssl_protocols 에서 TLSv1.0/1.1 제거 → TLSv1.2 TLSv1.3 만 허용",
+  "health_check": "TLSv1.2 로 https 200"
+}

@@ -1,0 +1,8 @@
+{
+  "issue_type": "tlscert_excessive_expiration",
+  "category": "tls",
+  "target": "lab-tls-drill",
+  "focus": "validity-length",
+  "operator_action": "10y to 1y",
+  "health_check": "조치 인증서로 https 200 (curl -k)"
+}

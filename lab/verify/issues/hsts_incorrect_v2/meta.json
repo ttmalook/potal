@@ -1,0 +1,8 @@
+{
+  "issue_type": "hsts_incorrect_v2",
+  "category": "http_header",
+  "target": "lab-http-drill",
+  "focus_header": "Strict-Transport-Security",
+  "operator_action": "add_header Strict-Transport-Security max-age=31536000; includeSubDomains",
+  "health_check": "GET / → HTTP 200 + 본문 'Lab Drill Site' (리다이렉트 이슈는 301→https)"
+}

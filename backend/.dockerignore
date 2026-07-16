@@ -1,0 +1,9 @@
+node_modules
+.env
+.env.*
+!.env.example
+*.log
+
+# 파일 저장소 데이터(사용자 해시·refresh 토큰·포털 데이터) — 이미지에 굽지 않음.
+# 런타임에 Postgres 사용, 폴백 시 saveFile()이 디렉터리를 자동 생성.
+data

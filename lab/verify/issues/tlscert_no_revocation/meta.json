@@ -1,0 +1,8 @@
+{
+  "issue_type": "tlscert_no_revocation",
+  "category": "tls",
+  "target": "lab-tls-drill",
+  "focus": "crl-distribution-points",
+  "operator_action": "no-CRL-DP to CRL-DP",
+  "health_check": "조치 인증서로 https 200 (curl -k)"
+}

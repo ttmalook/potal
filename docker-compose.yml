@@ -1,0 +1,116 @@
+# =====================================================================
+# SSC Partner Portal — 운영형 도커 스택 (동일 오리진, TLS 종단은 nginx)
+#   web(nginx:80/443) → backend(8787, 내부) → db(postgres) + ollama(11434, 로컬 LLM·해석 생성)
+#
+#   사용:
+#     cp .env.docker.example .env.docker   # 값 채우기 (시크릿)
+#     docker compose --env-file .env.docker up -d --build
+#     → https://localhost  (자체서명: 브라우저 경고 1회 허용)
+#
+#   ※ 한화손해보험 ISEC 데모(apps/, docker-compose.demo.yml)와는 별개 스택입니다.
+# =====================================================================
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-ssc_portal}
+      POSTGRES_USER: ${PGUSER:-ssc}
+      POSTGRES_PASSWORD: ${PGPASSWORD:?PGPASSWORD 를 .env.docker 에 설정하세요}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # backend 가 "수신 준비된" DB 를 기다리도록(단순 컨테이너 시작이 아니라).
+      # 없으면 부팅 경쟁으로 파일 저장소로 폴백됨.
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-ssc} -d ${PGDATABASE:-ssc_portal}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/Dockerfile.backend
+    environment:
+      NODE_ENV: production
+      PORT: 8787
+      # DB
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: ${PGDATABASE:-ssc_portal}
+      PGUSER: ${PGUSER:-ssc}
+      PGPASSWORD: ${PGPASSWORD:?PGPASSWORD 를 .env.docker 에 설정하세요}
+      PGSSL: ${PGSSL:-false}
+      # 인증 시크릿 (기본값이면 부팅 거부: assertAuthConfig)
+      AUTH_ACCESS_SECRET: ${AUTH_ACCESS_SECRET:?AUTH_ACCESS_SECRET 를 설정하세요}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@ssc.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD 를 설정하세요}
+      # 동일 오리진이라 CORS 는 사실상 미사용. 별도 오리진 접근 대비 값만 지정.
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://localhost}
+      # SecurityScorecard 연동 (토큰은 여기서만 관리, 프론트/로그 미노출)
+      SSC_API_BASE_URL: ${SSC_API_BASE_URL:-https://api.securityscorecard.io}
+      SSC_API_TOKEN: ${SSC_API_TOKEN:-}
+      # 조치 가이드 "해석" 생성 — 로컬 Ollama (데이터 외부 유출 없음)
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-exaone3.5:2.4b}
+      OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-90000}
+    expose:
+      - "8787"
+    depends_on:
+      db:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    environment:
+      SERVER_NAME: ${SERVER_NAME:-localhost}
+      # HSTS: 자체서명/스테이징 구간은 false. 실도메인+실인증서 검증 후 true 로.
+      ENABLE_HSTS: ${ENABLE_HSTS:-false}
+      HSTS_MAX_AGE: ${HSTS_MAX_AGE:-300}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # 자체서명 인증서 영속(재시작 시 재생성 방지). 운영 전환 시 실인증서를
+      # fullchain.pem / privkey.pem 로 이 볼륨(또는 bind mount)에 넣으면 자동 사용.
+      - certs:/etc/nginx/certs
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  ollama:
+    # 로컬 LLM 런타임 — 조치 가이드 "해석" 생성. 데이터 외부 유출 없음(온프레미스).
+    # CPU 기본. GPU 사용 시 deploy.resources.reservations.devices(nvidia) 추가.
+    # 모델은 ollama_models 볼륨에 캐시(재시작 시 재다운로드 없음). RAM 여유 ~4GB 권장.
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-exaone3.5:2.4b}
+    volumes:
+      - ollama_models:/root/.ollama
+    # 데몬 기동 → 준비되면 모델 pull(볼륨에 있으면 스킵) → 데몬 유지
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        ollama serve &
+        pid=$$!
+        until ollama list >/dev/null 2>&1; do sleep 1; done
+        echo "[ollama] 모델 준비: $$OLLAMA_MODEL (볼륨에 있으면 스킵)"
+        ollama pull "$$OLLAMA_MODEL" || echo "[ollama] pull 실패 — 첫 해석은 폴백, 이후 재시도"
+        wait $$pid
+    healthcheck:
+      # 데몬 수신 준비(모델 pull 은 백그라운드 지속; 준비 전 해석은 폴백)
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  certs:
+  ollama_models:

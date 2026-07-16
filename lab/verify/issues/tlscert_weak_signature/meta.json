@@ -1,0 +1,8 @@
+{
+  "issue_type": "tlscert_weak_signature",
+  "category": "tls",
+  "target": "lab-tls-drill",
+  "focus": "signature-algorithm",
+  "operator_action": "SHA1 to SHA256",
+  "health_check": "조치 인증서로 https 200 (curl -k)"
+}

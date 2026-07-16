@@ -1,0 +1,7 @@
+{
+  "issue_type": "ssh_weak_protocol",
+  "category": "ssh",
+  "target": "lab-ssh-drill",
+  "focus": "sshd KexAlgorithms",
+  "operator_action": "약한 KEX(dh-group14-sha1) 제거 -> curve25519 등"
+}

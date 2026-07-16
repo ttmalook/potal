@@ -1,0 +1,11 @@
+# 취약(의도적): 약한 알고리즘 제공
+Port 22
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+PermitRootLogin no
+# 취약: CBC/3DES cipher
+Ciphers 3des-cbc,aes128-cbc,aes128-ctr
+# 취약: SHA1 기반 KEX (약한 프로토콜/키교환)
+KexAlgorithms diffie-hellman-group14-sha1,diffie-hellman-group14-sha256
+# 취약: MD5/SHA1 MAC
+MACs hmac-md5,hmac-sha1
