@@ -5,6 +5,7 @@
 import React, { useState } from 'react'
 import * as data from '../data/mock.js'
 import { parseEndpoint, endpointConflicts } from '../lib/domainScope.js'
+import { apiChangeMyPassword } from '../lib/portalApi.js'
 import {
   Modal,
   Field,
@@ -278,6 +279,63 @@ export function CustomerEditModal({ customer, onClose, onSubmit, showToast }) {
         <Field label="고객 보안 담당자 이메일"><input value={form.contact} onChange={set('contact')} /></Field>
         <Field label="메모"><input value={form.note} onChange={set('note')} /></Field>
       </div>
+    </Modal>
+  )
+}
+
+// =====================================================================
+// 본인 비밀번호 변경 — 현재 비밀번호 검증 필수.
+//  변경에 성공하면 서버가 모든 세션을 폐기하므로 재로그인해야 한다.
+// =====================================================================
+export function ChangePasswordModal({ onClose, onDone, showToast }) {
+  const [cur, setCur] = useState('')
+  const [pw, setPw] = useState('')
+  const [pw2, setPw2] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const tooShort = pw.length > 0 && pw.length < 8
+  const mismatch = pw2.length > 0 && pw !== pw2
+  const same = pw.length > 0 && cur === pw
+  const canSubmit = cur.length > 0 && pw.length >= 8 && pw === pw2 && !same && !busy
+
+  const submit = async () => {
+    if (!canSubmit) return
+    setBusy(true); setErr('')
+    try {
+      await apiChangeMyPassword(cur, pw)
+      showToast?.({ tone: 'success', text: '비밀번호가 변경되었습니다 — 다시 로그인해 주세요' })
+      onClose?.()
+      onDone?.()          // 세션이 폐기되었으므로 로그아웃 처리
+    } catch (e) {
+      setErr(e?.payload?.message || '변경에 실패했습니다.')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <Modal title="비밀번호 변경" subtitle="변경 후 다시 로그인해야 합니다" onClose={onClose} size="sm"
+      footer={<>
+        <SecondaryButton onClick={onClose}>취소</SecondaryButton>
+        <PrimaryButton onClick={submit} disabled={!canSubmit}>{busy ? '변경 중…' : '변경'}</PrimaryButton>
+      </>}>
+      <div className="modal-form">
+        <Field label="현재 비밀번호" required>
+          <input type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="현재 비밀번호" />
+        </Field>
+        <Field label="새 비밀번호" required hint="8자 이상">
+          <input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="새 비밀번호" />
+        </Field>
+        <Field label="새 비밀번호 확인" required>
+          <input type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="한 번 더 입력" />
+        </Field>
+      </div>
+      {tooShort && <NoticeBox tone="warning">새 비밀번호는 8자 이상이어야 합니다.</NoticeBox>}
+      {mismatch && <NoticeBox tone="warning">두 입력이 일치하지 않습니다.</NoticeBox>}
+      {same && <NoticeBox tone="warning">현재 비밀번호와 다른 값을 사용하세요.</NoticeBox>}
+      {err && <NoticeBox tone="danger">{err}</NoticeBox>}
+      <p className="hint-text" style={{ marginTop: 10 }}>
+        변경하면 <b>모든 기기의 세션이 로그아웃</b>되며, 감사 로그에 기록됩니다(비밀번호 값은 기록되지 않음).
+      </p>
     </Modal>
   )
 }

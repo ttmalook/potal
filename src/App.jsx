@@ -7,7 +7,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import * as data from './data/mock.js'
 import { Toast } from './components/common.jsx'
 import { Icon } from './components/icons.jsx'
-import { CustomerWizard, DomainModal, CustomerEditModal } from './features/Registration.jsx'
+import { CustomerWizard, DomainModal, CustomerEditModal, ChangePasswordModal } from './features/Registration.jsx'
 import LoginView from './features/Login.jsx'
 import { refreshSession, logout as authLogout } from './lib/auth.js'
 import { SSC_MODE, IS_BACKEND_MODE } from './lib/sscApi.js'
@@ -103,6 +103,7 @@ export default function App() {
   const [wizard, setWizard] = useState(null) // 'customer' | null
   const [domainModal, setDomainModal] = useState(null) // null | { mode, initial, preselect }
   const [customerEdit, setCustomerEdit] = useState(null) // null | customer
+  const [pwModal, setPwModal] = useState(false) // 본인 비밀번호 변경
   const [persistMode, setPersistMode] = useState('loading') // 'loading' | 'backend' | 'local'
   const [toast, setToast] = useState(null)
   const [authStatus, setAuthStatus] = useState('checking') // 'checking' | 'authed' | 'anon'
@@ -334,6 +335,7 @@ export default function App() {
                 <div className="user-role">{{ admin: 'Admin', partner: 'Partner', viewer: 'Viewer · 읽기 전용' }[user?.role] || user?.role || ''} · {user?.email || ''}</div>
               </div>
             </div>
+            <button className="icon-btn" onClick={() => setPwModal(true)} title="비밀번호 변경">🔑</button>
             <button className="icon-btn" onClick={doLogout} title="로그아웃">⏻</button>
           </div>
         </header>
@@ -342,6 +344,7 @@ export default function App() {
       </div>
 
       {/* 전역 오버레이: Wizard / Modal / Toast */}
+      {pwModal && <ChangePasswordModal onClose={() => setPwModal(false)} onDone={doLogout} showToast={showToast} />}
       {wizard === 'customer' && (
         <CustomerWizard onClose={() => setWizard(null)} onRegister={addCustomer} onRegisterDomain={addDomain} showToast={showToast} persisted={persistMode === 'backend'} />
       )}

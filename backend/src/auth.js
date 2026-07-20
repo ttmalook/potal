@@ -192,6 +192,51 @@ authRouter.patch('/users/:id', requireAuth, requireAdmin, async (req, res) => {
   res.json({ ok: true, user: publicUser(u) })
 })
 
+// ── 비밀번호 ──
+// 공통 정책: 8자 이상 · 변경 시 해당 사용자의 refresh 세션 전부 폐기(다른 기기 강제 로그아웃)
+//            · 감사 기록은 남기되 비밀번호 값은 절대 기록하지 않음.
+const PW_MIN = 8
+
+// 본인 변경 — 현재 비밀번호 검증 필수.
+//  (세션이 탈취돼도 공격자가 비밀번호를 바꿔 계정을 영구 장악하지 못하게 하는 장치)
+authRouter.post('/me/password', requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {}
+  const u = await store.getUserById(req.user.id)
+  if (!u) return res.status(401).json({ ok: false })
+  if (!verifyPassword(currentPassword, u.passwordHash)) {
+    recordAudit({ kind: 'security', actor: u.email, role: u.role, action: '비밀번호 변경 실패', target: '현재 비밀번호 불일치', result: 'Failed', ip: req.ip })
+    return res.status(400).json({ ok: false, errorCode: 'BAD_CURRENT_PASSWORD', message: '현재 비밀번호가 올바르지 않습니다.' })
+  }
+  if (!newPassword || String(newPassword).length < PW_MIN) {
+    return res.status(400).json({ ok: false, errorCode: 'WEAK_PASSWORD', message: `새 비밀번호는 ${PW_MIN}자 이상이어야 합니다.` })
+  }
+  if (currentPassword === newPassword) {
+    return res.status(400).json({ ok: false, errorCode: 'SAME_PASSWORD', message: '현재 비밀번호와 다른 값을 사용하세요.' })
+  }
+  await store.updateUser(u.id, { passwordHash: hashPassword(newPassword) })
+  const revoked = await store.revokeAllForUser(u.id)
+  clearRefreshCookie(res)
+  recordAudit({ kind: 'security', actor: u.email, role: u.role, action: '비밀번호 변경', target: `세션 ${revoked}건 폐기`, result: 'OK', ip: req.ip })
+  res.json({ ok: true, message: '비밀번호가 변경되었습니다. 다시 로그인하세요.' })
+})
+
+// 관리자 재설정 — 대상 사용자가 비밀번호를 잊은 경우. 현재 비밀번호 불필요.
+authRouter.patch('/users/:id/password', requireAuth, requireAdmin, async (req, res) => {
+  const { newPassword } = req.body || {}
+  const target = await store.getUserById(req.params.id)
+  if (!target) return res.status(404).json({ ok: false, message: '사용자 없음' })
+  if (!newPassword || String(newPassword).length < PW_MIN) {
+    return res.status(400).json({ ok: false, errorCode: 'WEAK_PASSWORD', message: `새 비밀번호는 ${PW_MIN}자 이상이어야 합니다.` })
+  }
+  await store.updateUser(target.id, { passwordHash: hashPassword(newPassword) })
+  const revoked = await store.revokeAllForUser(target.id)
+  // 자기 자신을 재설정한 경우 현재 세션도 무효화
+  if (target.id === req.user.id) clearRefreshCookie(res)
+  recordAudit({ kind: 'security', actor: req.user.email, role: req.user.role, action: '비밀번호 재설정',
+    target: `${target.email} · 세션 ${revoked}건 폐기`, result: 'OK', ip: req.ip })
+  res.json({ ok: true, message: '비밀번호가 재설정되었습니다. 해당 사용자는 다시 로그인해야 합니다.' })
+})
+
 authRouter.patch('/users/:id/role', requireAuth, requireAdmin, async (req, res) => {
   const role = normalizeRole(req.body?.role)
   const target = await store.getUserById(req.params.id)

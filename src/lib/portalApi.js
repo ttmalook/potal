@@ -45,6 +45,11 @@ export const interpretGuide = (body) => call('/api/guides/interpret', jsonOpts('
 export const fetchUsers = () => call('/api/auth/users').then((d) => d.users)
 export const apiCreateUser = (body) => call('/api/auth/users', jsonOpts('POST', body)).then((d) => d.user)
 export const apiSetUserRole = (id, role) => call(`/api/auth/users/${encodeURIComponent(id)}/role`, jsonOpts('PATCH', { role })).then((d) => d.user)
+// 비밀번호 — 본인 변경(현재 비밀번호 필요) · 관리자 재설정
+export const apiChangeMyPassword = (currentPassword, newPassword) =>
+  call('/api/auth/me/password', jsonOpts('POST', { currentPassword, newPassword }))
+export const apiResetUserPassword = (id, newPassword) =>
+  call(`/api/auth/users/${encodeURIComponent(id)}/password`, jsonOpts('PATCH', { newPassword }))
 export const apiUpdateUser = (id, patch) => call(`/api/auth/users/${encodeURIComponent(id)}`, jsonOpts('PATCH', patch)).then((d) => d.user)
 // SSC API 토큰 (관리자 전용) — 값은 반환되지 않음(상태만: configured/source/hint)
 export const sscTokenStatus = () => call('/api/settings/ssc-token').then((d) => d.status)

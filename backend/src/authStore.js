@@ -80,6 +80,18 @@ export async function revokeFamily(family) {
   if (n) saveFile()
   return n
 }
+// 비밀번호 변경/재설정 시 해당 사용자의 모든 세션 폐기(다른 기기 강제 로그아웃).
+export async function revokeAllForUser(userId) {
+  if (db.isDbEnabled()) {
+    const list = (await db.docList(R)).filter((r) => r.userId === userId && !r.revoked)
+    for (const r of list) await db.docUpsert(R, r.tokenHash, { ...r, revoked: true })
+    return list.length
+  }
+  let n = 0
+  for (const r of fileState.refreshTokens) if (r.userId === userId && !r.revoked) { r.revoked = true; n++ }
+  if (n) saveFile()
+  return n
+}
 export async function pruneExpired() {
   const now = Date.now()
   if (db.isDbEnabled()) { for (const r of await db.docList(R)) if (Date.parse(r.expiresAt) <= now) await db.docDelete(R, r.tokenHash); return }
