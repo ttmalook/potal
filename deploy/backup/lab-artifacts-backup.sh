@@ -28,7 +28,12 @@ if ! docker volume inspect "$VOLUME" >/dev/null 2>&1; then
 fi
 
 mkdir -p "$BACKUP_ROOT"
-STAMP=$(date +%Y%m%d_%H%M)
+# 초 단위까지 포함 — 같은 분에 두 번 실행해도 스냅샷 이름이 겹치지 않는다.
+STAMP=$(date +%Y%m%d_%H%M%S)
+if [ -e "$BACKUP_ROOT/$STAMP" ]; then
+  echo "[backup] ERROR: 같은 이름의 스냅샷이 이미 있습니다 — $BACKUP_ROOT/$STAMP"
+  exit 1
+fi
 
 # 직전 스냅샷 = 가장 최근 날짜 디렉터리. 심볼릭 링크에 의존하지 않는다
 # (파일시스템/OS 별 심링크 동작 차이로 깨지는 것을 피하기 위함).
@@ -41,12 +46,20 @@ else
   MODE="전체(첫 회)"
 fi
 
-# 작업 중 디렉터리는 '20'으로 시작하지 않게 해서 스냅샷 탐색/정리에 섞이지 않도록 한다
-rm -rf "$BACKUP_ROOT/.incoming"
+# 작업 중 디렉터리는 '20'으로 시작하지 않게 해서 스냅샷 탐색/정리에 섞이지 않도록 한다.
+# 남아 있으면 root 소유일 수 있으므로 컨테이너(root) 안에서 제거한다.
+if [ -e "$BACKUP_ROOT/.incoming" ]; then
+  docker run --rm -v "$BACKUP_ROOT":/dst alpine:3.20 rm -rf /dst/.incoming
+fi
+
+# 주의: 결과물에 chown 을 걸면 안 된다 — 하드링크가 끊겨 증분 효과가 사라진다.
+#  대신 소유권은 root 그대로 두고, 삭제처럼 권한이 필요한 작업만 컨테이너 안에서 수행한다.
+#  (스냅샷 이름 변경은 부모 디렉터리 쓰기 권한만 있으면 되므로 호스트에서 가능)
 docker run --rm \
   -v "$VOLUME":/src:ro \
   -v "$BACKUP_ROOT":/dst \
-  alpine:3.20 sh -c "apk add --no-cache rsync >/dev/null 2>&1 && rsync -a --delete $LINKOPT /src/ /dst/.incoming/"
+  alpine:3.20 sh -c "apk add --no-cache rsync >/dev/null 2>&1 \
+    && rsync -a --delete $LINKOPT /src/ /dst/.incoming/"
 
 mv "$BACKUP_ROOT/.incoming" "$BACKUP_ROOT/${STAMP}"
 
@@ -59,11 +72,12 @@ echo "[backup] OK  ${MODE}"
 echo "[backup]     $BACKUP_ROOT/$STAMP  (파일 ${FILES}개 · 논리 크기 ${SNAP})"
 echo "[backup]     보관 스냅샷 ${SNAPS}개 · 전체 실사용 ${TOTAL} (동일 파일은 하드링크로 공유)"
 
-# 보관 개수 초과 스냅샷 정리(오래된 것부터)
+# 보관 개수 초과 스냅샷 정리(오래된 것부터).
+#  스냅샷 내부는 root 소유이므로 삭제도 컨테이너(root) 안에서 수행한다.
 COUNT=$(find "$BACKUP_ROOT" -maxdepth 1 -type d -name '20*' | wc -l | tr -d ' ')
 if [ "$COUNT" -gt "$KEEP" ]; then
   REMOVE=$((COUNT - KEEP))
-  find "$BACKUP_ROOT" -maxdepth 1 -type d -name '20*' | sort | head -n "$REMOVE" | while read -r d; do
-    rm -rf "$d"; echo "[backup]     보관주기 초과 삭제: $(basename "$d")"
-  done
+  OLD=$(find "$BACKUP_ROOT" -maxdepth 1 -type d -name '20*' | sort | head -n "$REMOVE" | while read -r d; do printf '/dst/%s ' "$(basename "$d")"; done)
+  docker run --rm -v "$BACKUP_ROOT":/dst alpine:3.20 sh -c "rm -rf $OLD"
+  echo "[backup]     보관주기 초과 ${REMOVE}건 삭제"
 fi
