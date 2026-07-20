@@ -37,6 +37,11 @@ import { claudeConfigured } from './claudeClient.js'
 process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e?.message || e))
 
 const app = express()
+// 리버스프록시(nginx) 뒤에서 실제 클라이언트 IP를 얻기 위해 X-Forwarded-For 를 신뢰.
+//  - 신뢰 홉 수를 1 로 한정(무제한 신뢰는 IP 위조 허용). 우리 구성은 nginx 1단만 앞에 있음.
+//  - backend 는 호스트 포트를 열지 않아 프록시를 우회한 직접 접근이 불가하므로 안전.
+//  - 미설정 시 req.ip 가 프록시 컨테이너 IP 로 기록되어 감사 로그 추적성이 사라진다.
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1))
 app.use(express.json())
 app.use(
   cors({
