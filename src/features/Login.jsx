@@ -102,7 +102,10 @@ export default function LoginView({ onSuccess }) {
             {busy ? '로그인 중…' : '로그인'}
           </PrimaryButton>
 
-          <p className="login-hint">데모 계정: <code className="inline-code sm">admin@ssc.local</code> / <code className="inline-code sm">ssc-demo-1234</code></p>
+          {/* 개발 빌드에서만 노출 — 배포본에 기본 계정을 광고하지 않는다 */}
+          {import.meta.env.DEV && (
+            <p className="login-hint">데모 계정: <code className="inline-code sm">admin@ssc.local</code> / <code className="inline-code sm">ssc-demo-1234</code></p>
+          )}
         </form>
       )}
     </div>

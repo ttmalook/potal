@@ -108,7 +108,12 @@ export async function seedDefaultUser() {
   if (await store.getUserByEmail(email)) return
   const pw = process.env.SEED_ADMIN_PASSWORD || 'ssc-demo-1234'
   await store.addUser({ id: 'usr-admin', email, name: '파트너 관리자', role: 'admin', passwordHash: hashPassword(pw) })
-  console.log(`[auth] 기본 사용자 시드: ${email} / ${pw}  (SEED_ADMIN_EMAIL·SEED_ADMIN_PASSWORD 로 변경)`)
+  // 프로덕션에서는 비밀번호를 로그에 남기지 않는다(컨테이너 로그 유출 방지).
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`[auth] 기본 사용자 시드: ${email} (비밀번호는 SEED_ADMIN_PASSWORD 값 — 로그 미출력)`)
+  } else {
+    console.log(`[auth] 기본 사용자 시드: ${email} / ${pw}  (SEED_ADMIN_EMAIL·SEED_ADMIN_PASSWORD 로 변경)`)
+  }
 }
 
 // ── 라우터 ──
