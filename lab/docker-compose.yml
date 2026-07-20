@@ -14,7 +14,9 @@ services:
       POSTGRES_DB: ssc_portal
       POSTGRES_USER: ssc
       POSTGRES_PASSWORD: ssc_dev_pw
-    ports: ['5432:5432']
+    # 로컬 루프백에만 바인딩 — 네트워크로 노출되지 않음(서버 배포 시 필수).
+    # 로컬 개발은 localhost 접속이라 그대로 동작.
+    ports: ['127.0.0.1:5432:5432']
     volumes:
       - ../db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - pgdata:/var/lib/postgresql/data

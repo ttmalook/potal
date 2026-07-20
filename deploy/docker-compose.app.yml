@@ -1,0 +1,96 @@
+# =====================================================================
+# VM-APP — 프레젠테이션 + 애플리케이션 티어
+#   web(nginx:80/443 · TLS 종단) → backend(8787, 내부) → [VM-DB] · [VM-LAB]
+#   ollama(로컬 LLM)는 backend 와 같은 VM 이므로 depends_on 유지.
+#
+#   사용:
+#     cp .env.app.example .env && vi .env      # 시크릿 · VM-DB/VM-LAB 주소
+#     docker compose -f docker-compose.app.yml --env-file .env up -d --build
+#     → https://<VM-APP-IP>   (자체서명: 브라우저 경고 1회 허용)
+#
+#   ⚠️ db 는 이 스택에 없습니다(VM-DB). backend 의 depends_on 에서 db 를 제거했습니다
+#      — compose 는 원격 DB 를 헬스체크할 수 없기 때문입니다.
+#      대신 backend 는 DB 연결 실패 시 파일 저장소로 폴백하고 그 사실을 감사 로그에 남깁니다.
+# =====================================================================
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/Dockerfile.backend
+    environment:
+      NODE_ENV: production
+      PORT: 8787
+      # ── 데이터 티어 (VM-DB) ──
+      PGHOST: ${PGHOST:?VM-DB 의 IP/호스트명을 설정하세요}
+      PGPORT: ${PGPORT:-5432}
+      PGDATABASE: ${PGDATABASE:-ssc_portal}
+      PGUSER: ${PGUSER:-ssc}
+      PGPASSWORD: ${PGPASSWORD:?PGPASSWORD 를 설정하세요}
+      # 티어 간 통신이므로 TLS 권장. 사설 CA/자체서명이면 REJECT_UNAUTHORIZED=false
+      PGSSL: ${PGSSL:-true}
+      PGSSL_REJECT_UNAUTHORIZED: ${PGSSL_REJECT_UNAUTHORIZED:-false}
+      # ── 인증 시크릿 (기본값이면 부팅 거부: assertAuthConfig) ──
+      AUTH_ACCESS_SECRET: ${AUTH_ACCESS_SECRET:?AUTH_ACCESS_SECRET 를 설정하세요}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@ssc.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD 를 설정하세요}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://localhost}
+      # ── SecurityScorecard (토큰은 서버에서만 관리) ──
+      SSC_API_BASE_URL: ${SSC_API_BASE_URL:-https://api.securityscorecard.io}
+      SSC_API_TOKEN: ${SSC_API_TOKEN:-}
+      # ── 검증랩 (VM-LAB) ──
+      LAB_COLLECTOR: ${LAB_COLLECTOR:-docker}
+      LAB_COLLECTOR_URL: ${LAB_COLLECTOR_URL:?VM-LAB 수집기 주소(http://<VM-LAB-IP>:8899)를 설정하세요}
+      # ── 로컬 LLM (같은 VM) ──
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-exaone3.5:2.4b}
+      OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-90000}
+    expose:
+      - "8787"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+    environment:
+      SERVER_NAME: ${SERVER_NAME:-localhost}
+      # 자체서명 구간은 false. 실인증서 검증 후 true 로 단계적 강화.
+      ENABLE_HSTS: ${ENABLE_HSTS:-false}
+      HSTS_MAX_AGE: ${HSTS_MAX_AGE:-300}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - certs:/etc/nginx/certs
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-exaone3.5:2.4b}
+    volumes:
+      - ollama_models:/root/.ollama
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        ollama serve &
+        pid=$$!
+        until ollama list >/dev/null 2>&1; do sleep 1; done
+        echo "[ollama] 모델 준비: $$OLLAMA_MODEL (볼륨에 있으면 스킵)"
+        ollama pull "$$OLLAMA_MODEL" || echo "[ollama] pull 실패 — 첫 해석은 폴백, 이후 재시도"
+        wait $$pid
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
+volumes:
+  certs:
+  ollama_models:

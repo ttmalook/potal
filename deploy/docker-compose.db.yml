@@ -1,0 +1,34 @@
+# =====================================================================
+# VM-DB — 데이터 티어 (PostgreSQL 단독)
+#
+#   사용:
+#     cp .env.db.example .env && vi .env      # PGPASSWORD 설정
+#     docker compose -f docker-compose.db.yml --env-file .env up -d
+#
+#   ⚠️ 5432 는 VM-APP 에서만 접근 가능해야 합니다. 반드시 방화벽으로 제한하세요.
+#      ufw:  ufw allow from <VM-APP-IP> to any port 5432 proto tcp
+#            ufw deny 5432
+# =====================================================================
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PGDATABASE:-ssc_portal}
+      POSTGRES_USER: ${PGUSER:-ssc}
+      POSTGRES_PASSWORD: ${PGPASSWORD:?PGPASSWORD 를 .env 에 설정하세요}
+    ports:
+      # VM-APP 에서 접근해야 하므로 노출. 반드시 방화벽으로 출발지 제한할 것.
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # 최초 기동 시 스키마 자동 적용(볼륨이 비어 있을 때만 실행됨)
+      - ../db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-ssc} -d ${PGDATABASE:-ssc_portal}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  pgdata:
