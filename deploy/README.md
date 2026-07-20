@@ -95,6 +95,15 @@ openssl rand -base64 24    # SEED_ADMIN_PASSWORD
 
 > `NODE_ENV=production` 에서 시크릿이 기본값이면 **backend 가 부팅을 거부**합니다(`assertAuthConfig`). 의도된 안전장치입니다.
 
+
+### DB 전송 암호화(PGSSL) 참고
+
+`postgres:16-alpine` 은 **기본적으로 TLS 가 비활성**입니다. 클라이언트가 `PGSSL=true` 로 요청하면
+서버가 SSL 을 지원하지 않아 연결이 실패합니다.
+
+- **1차 배포**: `PGSSL=false` (방화벽으로 VM-APP 만 5432 허용 — 격리된 내부 구간)
+- **이후 강화**: DB 서버에 인증서를 넣고 `postgresql.conf` 에 `ssl=on` 설정 후 `PGSSL=true` 로 전환
+
 ---
 
 ## 방화벽 매트릭스

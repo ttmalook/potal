@@ -27,7 +27,7 @@ services:
       PGUSER: ${PGUSER:-ssc}
       PGPASSWORD: ${PGPASSWORD:?PGPASSWORD 를 설정하세요}
       # 티어 간 통신이므로 TLS 권장. 사설 CA/자체서명이면 REJECT_UNAUTHORIZED=false
-      PGSSL: ${PGSSL:-true}
+      PGSSL: ${PGSSL:-false}
       PGSSL_REJECT_UNAUTHORIZED: ${PGSSL_REJECT_UNAUTHORIZED:-false}
       # ── 인증 시크릿 (기본값이면 부팅 거부: assertAuthConfig) ──
       AUTH_ACCESS_SECRET: ${AUTH_ACCESS_SECRET:?AUTH_ACCESS_SECRET 를 설정하세요}
