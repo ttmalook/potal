@@ -142,10 +142,27 @@ DB 연결이 실패하면 backend 는 파일 저장소로 폴백하고 **그 사
 | **증적 아티팩트** | `labartifacts` 볼륨 아카이브 | 일 1회 |
 | **롤백 지점** | ESXi 스냅샷 | 변경 작업 전 |
 
+스크립트는 `deploy/backup/` 에 있습니다(실행 검증 완료).
+
 ```bash
-# VM-DB — 시간별 백업 예시 (crontab)
-0 * * * * docker exec <db-container> pg_dump -U ssc ssc_portal | gzip > /backup/ssc_$(date +\%Y\%m\%d_\%H).sql.gz
+# VM-DB — 매시 정각 DB 백업
+sudo mkdir -p /backup/ssc && sudo chown $USER /backup/ssc
+crontab -e
+0 * * * * /home/sscdb/portal/deploy/backup/db-backup.sh >> /var/log/ssc-backup.log 2>&1
+
+# VM-LAB — 매일 03:10 증적 아티팩트 백업
+sudo mkdir -p /backup/ssc && sudo chown $USER /backup/ssc
+crontab -e
+10 3 * * * /home/ssclab/portal/deploy/backup/lab-artifacts-backup.sh >> /var/log/ssc-backup.log 2>&1
 ```
+
+| 스크립트 | 동작 |
+|---|---|
+| `db-backup.sh` | `pg_dump` → gzip → 크기 검증(실패 덤프 폐기) → 보관주기 초과분 정리 |
+| `lab-artifacts-backup.sh` | 볼륨을 읽기전용 마운트해 tar.gz (컨테이너 정지 불필요) |
+| `restore-db.sh` | 복구. **복구 직전 현재 상태를 먼저 덤프**해 되돌릴 수 있게 함 |
+
+> 백업본은 **VM 밖(NAS·별도 스토리지)으로 주기적으로 복사**하세요. VM이 통째로 손실되면 안에 있던 백업도 함께 사라집니다.
 
 > ⚠️ **ESXi 스냅샷은 백업이 아닙니다.** 롤백 지점일 뿐이며, 오래 유지하면 성능이 저하됩니다. 백업은 반드시 VM 외부로 보내세요.
 
