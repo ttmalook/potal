@@ -4,6 +4,9 @@ node_modules
 dist
 .vite
 backend
+# 예외: 프론트가 조치 방향 SSOT 로 공유하는 모듈 하나만 빌드 컨텍스트에 포함
+#  (src/pages/Pages.jsx 가 import — 제외하면 vite build 가 실패)
+!backend/src/remediationGuides.js
 docs
 .git
 .gitignore
