@@ -5,6 +5,10 @@
 
 ![stack](https://img.shields.io/badge/React-18-61dafb) ![stack](https://img.shields.io/badge/Node-Express(ESM)-3c873a) ![stack](https://img.shields.io/badge/PostgreSQL-16-336791) ![stack](https://img.shields.io/badge/Docker-Compose-2496ed) ![stack](https://img.shields.io/badge/Playwright-capture-45ba4b)
 
+![대시보드](docs/screens/01_dashboard.jpg)
+
+> 전체 화면(12개)의 정의·기능·역할·연결·API는 **[화면정의서 →](docs/SCREENS.md)**
+
 ---
 
 ## 무엇을 만들었나
@@ -71,7 +75,7 @@ flowchart LR
 
 **운영 흐름**: 고객사 등록 → 도메인/스코프 → SSC 리스크 수집 → 검증랩 조치 전·후 재현 → 증적 팩 → 고객 전달 리포트(PDF/메일) → SSC 재스캔으로 공식 해소 확인.
 
-자세한 설계는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 전체 화면 정의는 [화면정의서](docs/) 참조.
+자세한 설계는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), 전체 화면 정의는 [화면정의서](docs/SCREENS.md) 참조.
 
 ---
 
