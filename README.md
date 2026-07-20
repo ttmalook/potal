@@ -1,7 +1,7 @@
 # SSC Partner Portal
 
-> 외부 보안 관측(SecurityScorecard) 리스크를 **수집 → 검증랩 재현 → 증적 팩 → 고객 리포트 전달**까지 잇는 풀스택 파트너 보안 운영 포털.
-> **개인 포트폴리오/데모 프로젝트** — 실제 회사·고객·도메인 정보는 데모 샘플로 치환했습니다.
+> 외부 보안 관측(SecurityScorecard) 리스크를 **수집 → 검증랩 재현 → 증적 팩 → 고객 리포트 전달까지 잇는 풀스택 파트너 보안 운영 포털.
+> 개인 프로젝트** — 실제 회사·고객·도메인 정보는 데모 샘플로 치환했습니다.
 
 ![stack](https://img.shields.io/badge/React-18-61dafb) ![stack](https://img.shields.io/badge/Node-Express(ESM)-3c873a) ![stack](https://img.shields.io/badge/PostgreSQL-16-336791) ![stack](https://img.shields.io/badge/Docker-Compose-2496ed) ![stack](https://img.shields.io/badge/Playwright-capture-45ba4b)
 
