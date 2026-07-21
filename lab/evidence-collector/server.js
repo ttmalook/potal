@@ -31,6 +31,26 @@ function shellPromptHtml() {
   return `<span style="color:#4ade80">${esc(SHELL.user)}@${esc(SHELL.host)}</span>:<span style="color:#60a5fa">${esc(SHELL.cwd)}</span><span style="color:#94a3b8">${SHELL.sym}</span>`
 }
 
+// 명령 뒤에 붙는 '# 설명' 주석 — 비전문가도 각 명령의 목적을 바로 이해하도록.
+//  명령어로 자동 유추(호출부에서 seg.note 로 개별 지정도 가능).
+function cmdNote(cmd) {
+  const c = String(cmd || '')
+  if (/^date\b/.test(c)) return '촬영 시각 (수집 서버 UTC)'
+  if (/^ncat\b/.test(c)) return '공격자 관점 — 서비스 포트로 실제 접속 시도'
+  if (/^nmap\b/.test(c)) return '포트 열림/닫힘 상태 확인'
+  if (/^curl\b/.test(c)) return '실제 HTTP 응답 헤더 확인'
+  if (/^openssl\b/.test(c)) return 'TLS 핸드셰이크·인증서 확인'
+  if (/^dig\b/.test(c)) return 'DNS 레코드 조회'
+  if (/^ssh\b/.test(c)) return 'SSH 접속·알고리즘 협상 시도'
+  return ''
+}
+function cmdCommentHtml(cmd, note) {
+  const t = note || cmdNote(cmd)
+  if (!t) return ''
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<span style="color:#64748b">   # ${esc(t)}</span>`
+}
+
 // 증적 이미지 무결성 — 파일 내용의 SHA-256(사후 위변조 탐지용). 실패해도 증적 생성은 막지 않음.
 function sha256File(p) {
   try { return 'sha256:' + crypto.createHash('sha256').update(readFileSync(p)).digest('hex') } catch { return null }
@@ -187,9 +207,9 @@ function rawCmdTerminalHtml({ url, dateOut, curlOut }) {
   return `<div style="max-width:640px;margin:14px auto 24px;background:#0b0f17;border:1px solid #1f2937;border-radius:12px;overflow:hidden;font-family:ui-monospace,Menlo,Consolas,monospace">
     <div style="padding:8px 14px;background:#111827;border-bottom:1px solid #1f2937;color:#94a3b8;font-family:system-ui,sans-serif;font-size:11px">명령어 확인 (원문)</div>
     <div style="padding:12px 16px;font-size:13px;line-height:1.85;color:#cbd5e1">
-      <div style="color:#e2e8f0">${prompt} date -u</div>
+      <div style="color:#e2e8f0">${prompt} date -u${cmdCommentHtml('date -u')}</div>
       <div style="color:#fde047">${esc(dateOut || '(date 출력 없음)')}</div>
-      <div style="color:#e2e8f0">${prompt} curl -sSI ${esc(url)}</div>
+      <div style="color:#e2e8f0">${prompt} curl -sSI ${esc(url)}${cmdCommentHtml('curl')}</div>
       ${curlLines}
     </div>
   </div>`
@@ -436,13 +456,13 @@ async function renderTerminalScreenshot(segments, summary, variant, highlight = 
     //  collector 시스템 시각(UTC). header 계열은 아래 curl 응답의 date: 헤더(대상 시각)도 함께 남는다.
     let dateOut = ''
     try { dateOut = String((await execFileP('date', ['-u'], { timeout: 5000 })).stdout).trim() } catch { /* noop */ }
-    const dateBlock = `<div class="ln prompt">${shellPromptHtml()} date -u</div><div class="ln dateln">${esc(dateOut || '(date 출력 없음)')}</div>`
+    const dateBlock = `<div class="ln prompt">${shellPromptHtml()} date -u${cmdCommentHtml('date -u')}</div><div class="ln dateln">${esc(dateOut || '(date 출력 없음)')}</div>`
     const cmdBlocks = segArr.map((seg) => {
       const outLines = String(seg.raw || '(출력 없음)').split('\n').map((l) => {
         const dateHit = /^\s*date:/i.test(l) ? ' dateln' : ''
         return `<div class="ln ${highlight(l)}${dateHit}">${esc(l) || '&nbsp;'}</div>`
       }).join('')
-      return `<div class="ln prompt">${shellPromptHtml()} ${esc(seg.cmd)}</div>${outLines}`
+      return `<div class="ln prompt">${shellPromptHtml()} ${esc(seg.cmd)}${cmdCommentHtml(seg.cmd, seg.note)}</div>${outLines}`
     }).join('<div class="gap"></div>')
     const blocks = dateBlock + '<div class="gap"></div>' + cmdBlocks
     const titleColor = variant === 'before' ? '#f87171' : '#4ade80'
