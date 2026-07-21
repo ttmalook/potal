@@ -185,7 +185,7 @@ function rawCmdTerminalHtml({ url, dateOut, curlOut }) {
     .map((l) => `<div style="color:${colorOf(l)}">${esc(l) || '&nbsp;'}</div>`).join('')
   const prompt = shellPromptHtml()
   return `<div style="max-width:640px;margin:14px auto 24px;background:#0b0f17;border:1px solid #1f2937;border-radius:12px;overflow:hidden;font-family:ui-monospace,Menlo,Consolas,monospace">
-    <div style="padding:8px 14px;background:#111827;border-bottom:1px solid #1f2937;color:#94a3b8;font-family:system-ui,sans-serif;font-size:11px">실제 명령 실행 결과 — 원문 그대로 (무가공)</div>
+    <div style="padding:8px 14px;background:#111827;border-bottom:1px solid #1f2937;color:#94a3b8;font-family:system-ui,sans-serif;font-size:11px">명령어 확인 (원문)</div>
     <div style="padding:12px 16px;font-size:13px;line-height:1.85;color:#cbd5e1">
       <div style="color:#e2e8f0">${prompt} date -u</div>
       <div style="color:#fde047">${esc(dateOut || '(date 출력 없음)')}</div>
@@ -235,20 +235,24 @@ async function captureXss(url) {
       await page.waitForTimeout(80)
     }
     await page.waitForTimeout(120)
-    // 방명록(시연) 아래에 '실제 명령 실행 결과'(date -u + curl -sSI 원문)를 붙인다.
-    //  방명록=영향 전달, 명령 원문=재실행 가능한 하드 증거(시각·헤더). 둘을 한 장에 위/아래로 분리.
+    // 방명록(시연)은 대상 페이지에서 실제 캡처한다. 다만 조치 타깃의 CSP(default-src 'self')는
+    //  '주입한 인라인 스타일'을 차단하므로(style-src 폴백), 명령 블록을 대상 페이지에 붙이면
+    //  조치 화면에서만 스타일이 사라진다. → 명령 블록은 CSP 없는 별도 합성 페이지에서 렌더하고,
+    //  방명록은 이미지로 얹어 한 장으로 합친다. (방명록=영향, 명령 원문=재실행 가능한 하드 증거)
+    const cardEl = await page.$('.page')
+    const cardBuf = await (cardEl || page).screenshot({ type: 'png' })
+    const cardDataUri = 'data:image/png;base64,' + cardBuf.toString('base64')
     let dateOut = ''
     try { dateOut = String((await execFileP('date', ['-u'], { timeout: 5000 })).stdout).trim() } catch { /* noop */ }
     const curlOut = await curlHead(url)
-    await page.evaluate((html) => {
-      const holder = document.createElement('div')
-      holder.innerHTML = html
-      if (holder.firstElementChild) document.body.appendChild(holder.firstElementChild)
-    }, rawCmdTerminalHtml({ url, dateOut, curlOut }))
-    await page.waitForTimeout(30)
+    const comp = await context.newPage()
+    await comp.setContent(`<!doctype html><meta charset="utf-8"><div style="background:#eef2f7;padding:24px;font-family:system-ui,-apple-system,sans-serif">
+      <img src="${cardDataUri}" style="display:block;max-width:640px;width:100%;margin:0 auto;border:1px solid #e2e8f0;border-radius:12px"/>
+      ${rawCmdTerminalHtml({ url, dateOut, curlOut })}
+    </div>`, { waitUntil: 'load' })
     const file = `${ART}/${Date.now()}-${Math.random().toString(36).slice(2)}.png`
-    // 방명록 + 명령 블록을 함께 담기 위해 페이지 전체를 캡처.
-    await page.screenshot({ path: file, fullPage: true })
+    await comp.screenshot({ path: file, fullPage: true })
+    await comp.close()
     return { headers: resp ? resp.headers() : {}, xssRan: !!xssRan, defaced: !!xssRan, screenshot: file, status: resp ? resp.status() : 0, cspErrors, dateOut, curlOut }
   } finally {
     await browser.close()
