@@ -42,6 +42,7 @@ import {
   UsersAdmin
 } from './pages/Pages.jsx'
 import { LabStudio } from './pages/LabStudio.jsx'
+import { ApiDocs } from './pages/ApiDocs.jsx'
 
 // 사이드바 메뉴 정의
 const NAV = [
@@ -55,7 +56,8 @@ const NAV = [
   { key: 'customer-view', label: '고객 전달 화면', group: '전달' },
   { key: 'audit', label: '감사 로그', group: '전달' },
   { key: 'users', label: '사용자 관리', group: '관리', adminOnly: true },
-  { key: 'lab-studio', label: '랩 스튜디오', group: '관리', adminOnly: true }
+  { key: 'lab-studio', label: '랩 스튜디오', group: '관리', adminOnly: true },
+  { key: 'api-docs', label: 'API 문서', group: '관리', adminOnly: true }
 ]
 
 const PAGE_META = {
@@ -254,6 +256,8 @@ export default function App() {
         return <UsersAdmin app={app} />
       case 'lab-studio':
         return <LabStudio app={app} />
+      case 'api-docs':
+        return <ApiDocs />
       default:
         return <Dashboard app={app} />
     }
