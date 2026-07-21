@@ -22,6 +22,7 @@ import { initDb, isDbEnabled } from './db.js'
 import { authRouter, requireAuth, seedDefaultUser, assertAuthConfig } from './auth.js'
 import { migrateAuthIfEmpty, getUserByEmail as authGetByEmail, updateUser as authUpdateUser } from './authStore.js'
 import { requireAdmin, requirePerm, stampOwner, visibleTo } from './authz.js'
+import { openapiSpec } from './openapi.js'
 import { recordAudit, listAudit, seedAuditIfEmpty } from './auditStore.js'
 import { interpret as interpretGuide } from './guideInterpret.js'
 import { loadSscTokenOverride, setSscToken, clearSscToken, sscTokenStatus, loadClaudeKeyOverride, setClaudeKey, clearClaudeKey, claudeKeyStatus } from './settingsStore.js'
@@ -107,6 +108,9 @@ app.get('/api/lab/artifact', async (req, res) => {
 })
 
 app.use(['/api/portal', '/api/ssc', '/api/integrations', '/api/lab', '/api/guides', '/api/settings', '/api/admin'], requireAuth)
+
+// OpenAPI 스펙 — 관리자만(비인증자에게 API 표면 노출 금지). 프론트 'API 문서' 페이지가 이 스펙을 렌더.
+app.get('/api/admin/openapi.json', requireAdmin, (_req, res) => res.json(openapiSpec))
 
 // 조치 가이드 "해석"(비기술 쉬운말) — 로컬 Ollama 생성 + 캐시. 실패 시 text:null → 프론트가 기술 why로 폴백.
 app.post('/api/guides/interpret', async (req, res) => {

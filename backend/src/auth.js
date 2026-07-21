@@ -119,6 +119,36 @@ export async function seedDefaultUser() {
 // ── 라우터 ──
 export const authRouter = express.Router()
 
+/**
+ * @openapi
+ * /api/auth/login:
+ *   post:
+ *     tags: [auth]
+ *     summary: 로그인 — access 토큰 발급 + refresh 쿠키(ssc_rt) 설정
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email: { type: string, format: email, example: admin@demo.local }
+ *               password: { type: string, format: password, example: demo-password }
+ *     responses:
+ *       200:
+ *         description: 인증 성공 — access 토큰 + 사용자. refresh 토큰은 HttpOnly 쿠키로 설정됨.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok: { type: boolean, example: true }
+ *                 access: { type: string, description: JWT access 토큰(HS256) }
+ *                 user: { $ref: '#/components/schemas/User' }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
 authRouter.post('/login', async (req, res) => {
   const { email, password } = req.body || {}
   const u = await store.getUserByEmail(email)
@@ -131,6 +161,27 @@ authRouter.post('/login', async (req, res) => {
   res.json({ ok: true, access: signAccess({ sub: u.id, email: u.email, role: u.role }), user: publicUser(u) })
 })
 
+/**
+ * @openapi
+ * /api/auth/refresh:
+ *   post:
+ *     tags: [auth]
+ *     summary: access 토큰 재발급 (refresh 쿠키 회전)
+ *     description: HttpOnly refresh 쿠키(ssc_rt)로 새 access 토큰을 발급하고 refresh 를 회전한다. 재사용 감지 시 family 전체 폐기.
+ *     security: []
+ *     responses:
+ *       200:
+ *         description: 재발급 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok: { type: boolean, example: true }
+ *                 access: { type: string }
+ *                 user: { $ref: '#/components/schemas/User' }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
 authRouter.post('/refresh', async (req, res) => {
   const token = parseCookies(req)[REFRESH_COOKIE]
   if (!token) return res.status(401).json({ ok: false, errorCode: 'NO_REFRESH' })
@@ -145,6 +196,16 @@ authRouter.post('/refresh', async (req, res) => {
   res.json({ ok: true, access: signAccess({ sub: u.id, email: u.email, role: u.role }), user: publicUser(u) })
 })
 
+/**
+ * @openapi
+ * /api/auth/logout:
+ *   post:
+ *     tags: [auth]
+ *     summary: 로그아웃 — 현재 세션(refresh family) 폐기 + 쿠키 삭제
+ *     security: []
+ *     responses:
+ *       200: { description: 로그아웃 완료, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean, example: true } } } } } }
+ */
 authRouter.post('/logout', async (req, res) => {
   const token = parseCookies(req)[REFRESH_COOKIE]
   if (token) {
@@ -159,6 +220,24 @@ authRouter.post('/logout', async (req, res) => {
   res.json({ ok: true })
 })
 
+/**
+ * @openapi
+ * /api/auth/me:
+ *   get:
+ *     tags: [auth]
+ *     summary: 현재 로그인 사용자 조회 (권한 포함)
+ *     responses:
+ *       200:
+ *         description: 사용자 정보
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 ok: { type: boolean, example: true }
+ *                 user: { $ref: '#/components/schemas/User' }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
 authRouter.get('/me', requireAuth, async (req, res) => {
   const u = await store.getUserById(req.user.id)
   if (!u) return res.status(401).json({ ok: false })
