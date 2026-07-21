@@ -220,7 +220,10 @@ function save(state) {
 }
 // Postgres-or-file
 export async function getRuns() {
-  return db.isDbEnabled() ? db.docList('lab_runs_doc') : load().runs
+  const runs = db.isDbEnabled() ? await db.docList('lab_runs_doc') : load().runs
+  // 최신순 확정 정렬 — DB(docList)는 순서가 보장되지 않아 순번이 뒤섞이던 문제 수정.
+  //  startedAt 은 ISO 문자열이라 내림차순 문자열 비교 = 최신 먼저.
+  return [...runs].sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || '')))
 }
 export async function getRun(id) {
   return db.isDbEnabled() ? db.docGet('lab_runs_doc', id) : load().runs.find((r) => r.id === id) || null

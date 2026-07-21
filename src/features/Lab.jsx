@@ -142,6 +142,7 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
     try {
       await runLabPoC({
         issueType: findingKey,
+        customer: endpoint.customer || null,   // 증적 팩이 고객사에 귀속되도록(없으면 팩이 '—'로 저장되어 드로어에서 누락)
         domain: endpoint.sscLookupDomain || null,
         serviceEndpoint: endpoint.serviceEndpoint || null,
         accessUrl: endpoint.accessUrl || null,

@@ -1468,7 +1468,11 @@ function EndpointPacksDrawer({ row, packs, app, onSelectPack, onClose }) {
   const serviceEndpoint = domEndpoint(row)
   const sscLookupDomain = domLookup(row)
   const accessUrl = row.accessUrl || row.baseUrl || (serviceEndpoint ? `https://${serviceEndpoint}` : '')
-  const custPacks = (packs || []).filter((p) => p.customer === row.customer)
+  // 고객사명 일치 OR 도메인 호스트 일치(customer 가 비어 '—'로 저장된 기존 팩도 표시 — CustomerView 와 동일 규칙)
+  const custPacks = (packs || []).filter((p) =>
+    p.customer === row.customer ||
+    (sscLookupDomain && hostOfDom(p.sscLookupDomain || p.domain) === hostOfDom(sscLookupDomain))
+  )
   const columns = [
     { key: 'title', label: '증적 팩 제목' },
     { key: 'riskCount', label: '리스크 수' },
