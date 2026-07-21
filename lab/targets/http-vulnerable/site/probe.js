@@ -11,7 +11,7 @@
     d.setDate(d.getDate() - n)
     return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
   }
-  var offsets = [8, 7, 2] // 김철수, 이영희, 공격자 글(가장 최근)
+  var offsets = [5, 2, 0] // 김철수, 이영희, 공격자 글(가장 최근 = 촬영일 당일)
   var dates = document.querySelectorAll('.p-date')
   for (var i = 0; i < dates.length; i++) {
     if (offsets[i] != null) dates[i].textContent = daysAgo(offsets[i])
