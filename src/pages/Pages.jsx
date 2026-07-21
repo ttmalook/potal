@@ -1522,7 +1522,12 @@ function EndpointPacksDrawer({ row, packs, app, onSelectPack, onClose }) {
             <BulkActionsBar
               count={sel.length}
               onClear={() => setSel([])}
-              actions={app?.can?.('evidence') ? [
+              actions={[
+                { label: '고객 전달 화면으로', onClick: () => {
+                  onClose?.()
+                  app?.navigate?.('customer-view')
+                } },
+                ...(app?.can?.('evidence') ? [
                 { label: '전달에서 제외', onClick: () => {
                   const picked = custPacks.filter((p) => sel.includes(p.id))
                   picked.forEach((p) => app?.updateEvidencePack?.(p.id, { excluded: true }))
@@ -1543,7 +1548,8 @@ function EndpointPacksDrawer({ row, packs, app, onSelectPack, onClose }) {
                   setSel([])
                   app?.showToast?.({ tone: 'success', text: `${picked.length}건 삭제됨` })
                 } }
-              ] : []}
+              ] : [])
+              ]}
             />
             <div className="card no-pad"><DataTable columns={columns} rows={custPacks} onRowClick={onSelectPack} renderCell={renderCell} selectable selected={sel} onSelectedChange={setSel} rowId={(p) => p.id} pageSize={10} /></div>
             <p className="hint-text">증적 팩은 <b>기본으로 고객 전달에 포함</b>됩니다. 전달 화면 미리보기에서 확인 후 <b>전달에서 제외</b>하거나, 불필요한 팩은 <b>삭제</b>하세요. 팩 제목 클릭 시 상세.</p>
@@ -1597,16 +1603,6 @@ export function EvidencePacks({ app }) {
           </>}
           onClose={() => setSelected(null)}
           width="lg"
-          footer={<>
-            <button className="btn btn-ghost foot-left" onClick={() => window.print()}>PDF (인쇄/저장)</button>
-            <SecondaryButton onClick={() => { onClose?.(); app.navigate?.('customer-view') }}>고객 전달 화면으로</SecondaryButton>
-            {app.can?.('evidence') && (selected.excluded === true
-              ? <SecondaryButton onClick={() => { setSelected((s) => ({ ...s, excluded: false })); app.updateEvidencePack?.(selected.id, { excluded: false }); app.showToast?.('고객 전달에 포함됨') }}>전달에 포함</SecondaryButton>
-              : <SecondaryButton onClick={() => { setSelected((s) => ({ ...s, excluded: true })); app.updateEvidencePack?.(selected.id, { excluded: true }); app.showToast?.('전달에서 제외됨') }}>전달에서 제외</SecondaryButton>)}
-            {app.can?.('evidence') && selected.shareToken && <SecondaryButton onClick={() => { setSelected((s) => ({ ...s, shareToken: null, shareExpiresAt: null })); app.updateEvidencePack?.(selected.id, { shareToken: null, shareExpiresAt: null }); app.showToast?.('게시 링크 폐기됨 — 기존 링크는 더 이상 열리지 않습니다') }}>링크 폐기</SecondaryButton>}
-            <SecondaryButton onClick={() => setSelected(null)}>닫기</SecondaryButton>
-            {app.can?.('evidence') && <button className="btn btn-primary" onClick={() => { let t = selected.shareToken; if (!t) { const f = newShareFields(); t = f.shareToken; setSelected((s) => ({ ...s, ...f })); app.updateEvidencePack?.(selected.id, f) } navigator.clipboard?.writeText(`${location.origin}${location.pathname}#share=${t}`); app.showToast?.('고객 게시 링크 복사됨 — 30일간 유효, 로그인 없이 이 팩만 열림') }}>고객 링크 복사</button>}
-          </>}
         >
           {/* 검증랩·조치가이드·고객전달과 동일한 단계형(개요→조치방법→검증→마무리)으로 통일 */}
           {selected.source === 'lab'
@@ -2035,6 +2031,15 @@ export function DeliveryReportViewer({ custName, app }) {
   const today = new Date().toISOString().slice(0, 10)
   // 전달 시점 재촬영은 제거됨 — 정적 랩 타깃 재촬영은 그림이 동일해 무의미.
   //  대표 증적은 검증랩 화면에서 지정하며, 여기서는 팩이 가리키는 대표 런을 그대로 사용한다.
+  // 이 고객사에 전달될(제외 안 된) 증적 팩 전체 — 팩별 고객 게시 링크 발급/복사용.
+  const deliverPacks = (app?.evidencePacks || []).filter((p) => p.excluded !== true
+    && (hostOfDom(p.sscLookupDomain || p.domain) === hostOfDom(scoreDomain) || p.customer === custName))
+  const copyShareLink = (pack) => {
+    let t = pack.shareToken
+    if (!t) { const f = newShareFields(); t = f.shareToken; app?.updateEvidencePack?.(pack.id, f) }
+    navigator.clipboard?.writeText(`${location.origin}${location.pathname}#share=${t}`)
+    app?.showToast?.('고객 게시 링크 복사됨 — 30일간 유효, 로그인 없이 이 팩만 열림')
+  }
 
   useEffect(() => {
     let alive = true
@@ -2131,7 +2136,26 @@ export function DeliveryReportViewer({ custName, app }) {
             </div>
             <p className="hint-text">① <b>PDF (인쇄/저장)</b>으로 리포트를 저장 → ② <b>이메일로 전달</b>로 파트너 메일이 열리면(수신자·제목·본문 프리필) 저장한 PDF를 첨부해 발송하세요. 앱이 직접 발송하지 않습니다.</p>
           </div>
-          <NoticeBox tone="info" title="게시 링크(개별 팩)">개별 증적 팩의 고객 게시 링크는 <b>증적 팩</b> 화면에서 발급합니다(로그인 없이 해당 팩만 열람).</NoticeBox>
+          {app?.can?.('evidence') && (
+            <div className="card">
+              <SectionTitle title="게시 링크(개별 팩)" desc="로그인 없이 해당 팩만 열람할 수 있는 고객 게시 링크입니다. 30일간 유효." />
+              {deliverPacks.length
+                ? (
+                  <div className="pack-link-list">
+                    {deliverPacks.map((p) => (
+                      <div key={p.id} className="pack-link-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderTop: '1px solid var(--border,#eee)' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.title}</div>
+                          <div className="hint-text" style={{ margin: 0 }}>{p.shareToken ? '링크 발급됨 · 다시 복사' : '아직 미발급 · 클릭 시 발급·복사'}</div>
+                        </div>
+                        <SecondaryButton onClick={() => copyShareLink(p)}>링크 복사</SecondaryButton>
+                      </div>
+                    ))}
+                  </div>
+                )
+                : <p className="hint-text" style={{ margin: 0 }}>이 고객사의 전달 대상 증적 팩이 없습니다. <b>증적 팩</b> 화면에서 담으세요.</p>}
+            </div>
+          )}
         </div>
 
         <div className="report-nav cv-noprint">
