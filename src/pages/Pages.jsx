@@ -90,7 +90,7 @@ export function Dashboard({ app }) {
     { key: 'evidenceReady', label: '전달 포함 증적 팩', value: included.length, unit: '건', tone: 'success' }
   ]
   const queues = [
-    { key: 'toDeliver', label: '전달 포함 증적 팩', count: included.length, tone: 'success', desc: '고객 전달 화면에 노출되는 팩', hint: '고객 전달 화면', nav: 'delivery' },
+    { key: 'toDeliver', label: '전달 포함 증적 팩', count: included.length, tone: 'success', desc: '고객 전달 화면에 노출되는 팩', hint: '고객 전달 화면', nav: 'customer-view' },
     { key: 'excluded', label: '전달 제외 증적 팩', count: packs.length - included.length, tone: 'neutral', desc: '전달에서 제외된 팩(내부 보관)', hint: '증적 팩', nav: 'packs' },
     { key: 'lab', label: '검증랩 참고 증적', count: bySource('lab'), tone: 'purple', desc: '검증랩에서 수집한 조치 전·후 증적', hint: '증적 팩', nav: 'packs' },
     { key: 'guide', label: '조치 권고 (가이드)', count: bySource('guide'), tone: 'warning', desc: '일반 조치 권고 가이드 팩', hint: '조치 가이드', nav: 'guides' }
@@ -1599,6 +1599,7 @@ export function EvidencePacks({ app }) {
           width="lg"
           footer={<>
             <button className="btn btn-ghost foot-left" onClick={() => window.print()}>PDF (인쇄/저장)</button>
+            <SecondaryButton onClick={() => { onClose?.(); app.navigate?.('customer-view') }}>고객 전달 화면으로</SecondaryButton>
             {app.can?.('evidence') && (selected.excluded === true
               ? <SecondaryButton onClick={() => { setSelected((s) => ({ ...s, excluded: false })); app.updateEvidencePack?.(selected.id, { excluded: false }); app.showToast?.('고객 전달에 포함됨') }}>전달에 포함</SecondaryButton>
               : <SecondaryButton onClick={() => { setSelected((s) => ({ ...s, excluded: true })); app.updateEvidencePack?.(selected.id, { excluded: true }); app.showToast?.('전달에서 제외됨') }}>전달에서 제외</SecondaryButton>)}
@@ -1640,7 +1641,9 @@ export function SharedPackView({ token }) {
       <div className="shared-body">
         <h1 className="shared-title">{pack.title}</h1>
         <p className="shared-sub">{pack.customer} · {pack.domain} · 발행일 {pack.created}</p>
-        {pack.source === 'lab' ? <LabEvidencePackBody pack={pack} /> : <RiskEvidencePackBody pack={pack} />}
+        {pack.source === 'lab' ? <LabEvidencePackBody pack={pack} />
+          : pack.source === 'risk' ? <RiskEvidencePackBody pack={pack} />
+            : <EvidencePackBody pack={pack} />}
       </div>
     </div>
   )
@@ -1872,14 +1875,6 @@ function EvidencePackBody({ pack, app }) {
       {/* F. SecurityScorecard 재스캔 / 공식 검증 안내 */}
       <EvidenceCard title="F. SecurityScorecard 재스캔 / 공식 검증 안내" accent="orange" badge={<TagBadge tone="orange">SSC 재스캔 필요</TagBadge>}>
         <NoticeBox tone="warning" title="공식 검증 필요">{data.RESCAN_NOTICE}</NoticeBox>
-        <div className="btn-row">
-          {data.rescanActions.map((a) => (
-            <button key={a.key} className="btn btn-secondary" onClick={() => app?.showToast?.(`${a.label} (mock)`)}>
-              {a.icon} {a.label}
-            </button>
-          ))}
-        </div>
-        <p className="hint-text">* 실제 SecurityScorecard API 호출 없이 mock 동작입니다.</p>
       </EvidenceCard>
 
       <LegalFooter />
