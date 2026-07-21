@@ -2,6 +2,22 @@
 //  - 방명록 글에 삽입된 인라인 스크립트가 실제로 실행됐는지(window.__xssRan) 판정.
 //  - 실행됨(취약)  → 공격자 글이 스크립트를 실행해 쿠키 탈취/변조. 🚨 증표.
 //  - 차단됨(조치)  → 삽입된 스크립트가 CSP로 실행 안 됨(텍스트로만 남음). ✅ 증표.
+// 방명록 게시글 날짜 → 촬영 시점(new Date, = collector 캡처 순간) 기준 최근 날짜로 갱신.
+//  데모 콘텐츠를 덜 낡아 보이게 하는 표시용일 뿐, 증적의 촬영 시각(대상 응답 Date 헤더)과는 별개.
+;(function () {
+  var pad = function (n) { return (n < 10 ? '0' : '') + n }
+  var daysAgo = function (n) {
+    var d = new Date()
+    d.setDate(d.getDate() - n)
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+  }
+  var offsets = [8, 7, 2] // 김철수, 이영희, 공격자 글(가장 최근)
+  var dates = document.querySelectorAll('.p-date')
+  for (var i = 0; i < dates.length; i++) {
+    if (offsets[i] != null) dates[i].textContent = daysAgo(offsets[i])
+  }
+})()
+
 ;(function () {
   var ran = !!window.__xssRan
   var body = document.getElementById('attacker-body')
