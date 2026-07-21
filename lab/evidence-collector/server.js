@@ -199,6 +199,7 @@ function rawCmdTerminalHtml({ url, dateOut, curlOut }) {
     const k = m[1].toLowerCase()
     if (k === 'date') return '#fde047'
     if (k === 'content-security-policy') return headerVerdict(k, m[2]) === 'good' ? '#86efac' : '#fca5a5'
+    if (k === 'set-cookie') return /httponly/i.test(m[2]) ? '#86efac' : '#fca5a5'
     return '#64748b'
   }
   const curlLines = String(curlOut || '(curl 응답 없음)').split('\n')
@@ -278,6 +279,44 @@ async function captureXss(url) {
     await browser.close()
   }
 }
+// 공격자(XSS) 관점 — 브라우저 JS 로 세션 쿠키를 읽어본다. HttpOnly 없으면 노출(탈취), 있으면 빈 값(차단).
+async function captureCookieRead(url) {
+  const browser = await chromium.launch()
+  try {
+    const page = await (await browser.newContext()).newPage()
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(() => {})
+    return String((await page.evaluate(() => document.cookie).catch(() => '')) || '')
+  } finally { await browser.close() }
+}
+
+// 'document.cookie 읽기 시도' 결과를 브라우저 콘솔 스타일 블록으로. 값이 있으면 탈취 성공(빨강)/없으면 차단(초록).
+function cookieConsoleHtml(jsCookie) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const has = !!String(jsCookie || '').trim()
+  const rc = has ? '#fca5a5' : '#86efac'
+  const result = has ? `"${esc(jsCookie)}"   // 세션 쿠키 탈취 성공` : `""   // HttpOnly 로 JS 접근 차단 (탈취 실패)`
+  return `<div style="max-width:640px;margin:0 auto 24px;background:#0b0f17;border:1px solid #1f2937;border-radius:12px;overflow:hidden;font-family:ui-monospace,Menlo,Consolas,monospace">
+    <div style="padding:8px 14px;background:#111827;border-bottom:1px solid #1f2937;color:#94a3b8;font-family:system-ui,sans-serif;font-size:11px">브라우저 콘솔 (공격자 XSS 관점) — 세션 쿠키 읽기 시도</div>
+    <div style="padding:12px 16px;font-size:13px;line-height:1.85;color:#cbd5e1">
+      <div style="color:#e2e8f0">&gt; document.cookie<span style="color:#64748b">   # 삽입된 스크립트가 쿠키를 읽어 외부로 탈취 시도</span></div>
+      <div style="color:${rc};font-weight:600">${result}</div>
+    </div>
+  </div>`
+}
+
+// 쿠키 증적 한 장 — curl Set-Cookie(원문) + 브라우저 콘솔(document.cookie). 조치 타깃 CSP 를 피해 합성 페이지에서 렌더.
+async function cookieShot({ url, dateOut, curlOut, jsCookie }) {
+  const browser = await chromium.launch()
+  try {
+    const page = await (await browser.newContext({ viewport: { width: 720, height: 900 } })).newPage()
+    await page.setContent(`<!doctype html><meta charset="utf-8"><div style="background:#eef2f7;padding:20px;font-family:system-ui,-apple-system,sans-serif">${rawCmdTerminalHtml({ url, dateOut, curlOut })}${cookieConsoleHtml(jsCookie)}</div>`, { waitUntil: 'load' })
+    const file = `${ART}/${Date.now()}-${Math.random().toString(36).slice(2)}.png`
+    await page.screenshot({ path: file, fullPage: true })
+    return file
+  } catch { return null }
+  finally { await browser.close() }
+}
+
 const CSP_ISSUES = ['csp_no_policy', 'csp_no_policy_v2', 'content_security_policy_missing']
 
 // 응답 헤더를 보안 관점으로 분류 → [{ name, value, state }]
@@ -1135,20 +1174,27 @@ app.post('/collect', async (req, res) => {
     const visual_before = { label: '조치 전 · curl -I 응답 헤더', screenshot: shotB, variant: 'before' }
     const visual_after = { label: '조치 후 · curl -I 응답 헤더', screenshot: shotA, variant: 'after' }
 
-    // 쿠키 계열: 실제 쿠키 속성(HttpOnly/SameSite) 비교
+    // 쿠키 계열: 공격자(XSS) 관점 시나리오 — 세션 쿠키 탈취 시도. HttpOnly 없으면 성공, 있으면 차단.
     if (String(issueType).toLowerCase().includes('cookie')) {
       const b = cookieAttrs(before.cookies)
       const a = cookieAttrs(after.cookies)
+      // 브라우저 JS 로 실제 document.cookie 읽기(공격 시나리오). + curl Set-Cookie 원문.
+      const jsB = await captureCookieRead(`${VUL}${hdrPath}`)
+      const jsA = await captureCookieRead(`${REM}${hdrPath}`)
+      let dOut = ''
+      try { dOut = String((await execFileP('date', ['-u'], { timeout: 5000 })).stdout).trim() } catch { /* noop */ }
+      const cShotB = rawB ? await cookieShot({ url: `${VUL}${hdrPath}`, dateOut: dOut, curlOut: rawB, jsCookie: jsB }) : null
+      const cShotA = rawA ? await cookieShot({ url: `${REM}${hdrPath}`, dateOut: dOut, curlOut: rawA, jsCookie: jsA }) : null
       return res.json({
         ok: true,
-        visual_before,
-        visual_after,
+        visual_before: cShotB ? { label: '조치 전 · 세션 쿠키 탈취 시도 → 성공 (HttpOnly 없음)', screenshot: cShotB, variant: 'before' } : visual_before,
+        visual_after: cShotA ? { label: '조치 후 · 세션 쿠키 탈취 시도 → 차단 (HttpOnly)', screenshot: cShotA, variant: 'after' } : visual_after,
         technical_diff: [
-          { key: 'Session Cookie', before: b.present ? b.name : '(none)', after: a.present ? a.name : '(none)', changed: false },
+          { key: '공격자 document.cookie 읽기', before: jsB ? `"${jsB}" (탈취 성공)` : '(빈 값)', after: jsA ? `"${jsA}"` : '"" (HttpOnly 차단)', changed: (jsB || '') !== (jsA || '') },
           { key: 'HttpOnly', before: String(b.httpOnly), after: String(a.httpOnly), changed: b.httpOnly !== a.httpOnly },
           { key: 'SameSite', before: String(b.sameSite), after: String(a.sameSite), changed: String(b.sameSite) !== String(a.sameSite) }
         ],
-        raw_summary: { tool: 'playwright', focus: 'cookie attributes (context.cookies())' }
+        raw_summary: { tool: 'curl(Set-Cookie 원문) + playwright(document.cookie)', focus: 'HttpOnly XSS 쿠키 탈취 시나리오' }
       })
     }
 
