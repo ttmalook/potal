@@ -41,7 +41,7 @@ import { getScore, useScore } from '../lib/sscScore.js'
 import { getIssueTypeSummary, primeIssueTypeSummary } from '../lib/sscFindings.js'
 import { fetchSharedPack, newShareFields, fetchUsers, apiCreateUser, apiSetUserRole, apiUpdateUser, apiResetUserPassword, sscTokenStatus, sscTokenSet, sscTokenClear, fetchAudit } from '../lib/portalApi.js'
 import { loadInterpretation, cachedInterpretation } from '../lib/interpret.js'
-import { catalogNameKo, factorNameKo, catalogEntry, canonicalIssueKey, KO_SEVERITY } from '../data/sandboxCatalog.js'
+import { catalogNameKo, factorNameKo, catalogEntry, canonicalIssueKey, catalogGroups, KO_SEVERITY } from '../data/sandboxCatalog.js'
 import { getRemediationGuide, GUIDE_ISSUE_TYPES, guideRowMeta } from '../data/remediationSteps.js'
 import { frameworksForCategory, complianceByIndustry } from '../data/compliance.js'
 import { SscBackendImport, SscSmokeTest, RiskFindingsRealPanel, IssueTypeSummary } from '../features/SscApi.jsx'
@@ -1165,7 +1165,7 @@ export function RemediationGuides({ app = null, focusIssueType = null }) {
   const erows = applyFilters(domains, efilters, epCfg.filterFields, esearch, ['serviceEndpoint', 'sscLookupDomain', 'customer'])
   return (
     <div className="page">
-      <PageHeader title="조치 가이드" desc="고객사·서비스 주소를 클릭하면 우측에서 그 대상의 SSC 리스크 조치 가이드가 열립니다. (일반 조치 기준 · 고객 환경 반영 전 내부 검토 필요)" />
+      <PageHeader title="조치 가이드" desc="고객사·서비스 주소를 클릭하면 그 대상의 조치 가이드가 열립니다. 검증랩 미지원 유형만 다룹니다(지원 유형은 검증랩에서 증적과 함께 제공). 일반 조치 기준 · 고객 환경 반영 전 내부 검토 필요." />
       <FilterBar fields={epCfg.filterFields} filters={efilters} onChange={setEfilters} search={esearch} onSearchChange={setEsearch} searchPlaceholder="Endpoint · SSC 조회 기준 · 고객사 검색" resultCount={erows.length} />
       <div className="card no-pad">
         <DataTable columns={epCfg.columns} rows={erows} onRowClick={setTarget} renderCell={epCfg.renderCell} pageSize={10} />
@@ -1219,7 +1219,15 @@ function EndpointGuideDrawer({ row, app, onClose }) {
     return () => { alive = false }
   }, [sscLookupDomain])
 
-  const scopedRows = scopeKeys ? rowsAll.filter((g) => scopeKeys.has(canonicalIssueKey(g.key))) : []
+  // 조치 가이드는 '검증랩 미지원' 이슈만 담당한다.
+  //  검증랩이 지원하는 유형(catalogEntry 존재)은 검증랩에서 조치 전·후 증적 + 조치 방법을 함께 제공하므로
+  //  여기에 중복 노출하지 않는다(역할 분리 — 사용자 혼란 방지).
+  // 검증랩 지원 판별 — catalogEntry(canonical) 은 카탈로그 키의 _v2 유무가 섞여 오판(예: x_content_type)한다.
+  //  → 카탈로그 키를 모두 canonical 화한 집합으로 비교(양쪽 정규화).
+  const LAB_KEYS = new Set(catalogGroups().flatMap((g) => g.items.map((it) => canonicalIssueKey(it.key))))
+  const isLabSupported = (k) => LAB_KEYS.has(canonicalIssueKey(k))
+  const scopedRows = scopeKeys ? rowsAll.filter((g) => scopeKeys.has(canonicalIssueKey(g.key)) && !isLabSupported(g.key)) : []
+  const labSupportedCount = scopeKeys ? [...scopeKeys].filter((k) => rowsAll.some((g) => canonicalIssueKey(g.key) === k) && isLabSupported(k)).length : 0
   const filterFields = [
     { key: 'category', label: '분류', type: 'select', options: uniq(rowsAll.map((g) => g.category)) },
     { key: 'severity', label: '위험도', type: 'select', options: uniq(rowsAll.map((g) => g.severity)) },
@@ -1263,8 +1271,13 @@ function EndpointGuideDrawer({ row, app, onClose }) {
           ? <NoticeBox tone="info">이 대상은 아직 SSC 수집된 리스크가 없습니다. 전체 유형 조치는 <b>랩 스튜디오 → 커버리지</b>를 참고하세요.</NoticeBox>
           : scopeStatus === 'error'
             ? <NoticeBox tone="warning">리스크를 불러오지 못했습니다(조회 범위 밖일 수 있음).</NoticeBox>
-            : (
+            : scopedRows.length === 0
+              ? <NoticeBox tone="info">이 대상의 수집 리스크는 모두 <b>검증랩에서 지원</b>됩니다{labSupportedCount ? ` (${labSupportedCount}종)` : ''}. 조치 전·후 증적과 조치 방법은 <b>검증랩 (참고 시연)</b>에서 확인하세요. (조치 가이드는 검증랩 미지원 유형만 다룹니다)</NoticeBox>
+              : (
               <>
+                {labSupportedCount > 0 && (
+                  <p className="hint-text" style={{ margin: '0 0 10px' }}>검증랩 지원 {labSupportedCount}종은 <b>검증랩</b>에서 증적과 함께 제공되어 여기서 제외했습니다. 아래는 <b>검증랩 미지원</b> 유형입니다.</p>
+                )}
                 <FilterBar fields={filterFields} filters={filters} onChange={setFilters} search={search} onSearchChange={setSearch} searchPlaceholder="리스크 항목 · 이슈 유형 · 유형 키 검색" resultCount={rows.length} />
                 <BulkActionsBar
                   count={sel.length}
