@@ -46,6 +46,10 @@ services:
       OLLAMA_TIMEOUT_MS: ${OLLAMA_TIMEOUT_MS:-90000}
     expose:
       - "8787"
+    volumes:
+      # 검증랩 타깃의 실제 설정 원문(취약↔조치)을 backend 가 읽어 '실제 소스 변경' diff 렌더.
+      #  없으면 sourceDiff=null 로 폴백(일반 예시). readSourceDiff 는 /lab/targets 경로를 참조.
+      - ../lab/targets:/lab/targets:ro
     depends_on:
       ollama:
         condition: service_healthy
