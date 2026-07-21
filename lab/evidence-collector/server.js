@@ -11,10 +11,19 @@ import net from 'node:net'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import crypto from 'node:crypto'
+import os from 'node:os'
 import { readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
 const execFileP = promisify(execFile)
+
+// 증적 터미널에 표시할 실제 셸 프롬프트 — 명령이 실제로 실행되는 collector 컨테이너의
+//  user@hostname:cwd 를 그대로 사용(지어낸 값이 아니라 실측). root 면 '#', 아니면 '$'.
+const SHELL = (() => {
+  let user = 'app'
+  try { user = os.userInfo().username } catch { /* noop */ }
+  return { user, host: os.hostname(), cwd: process.cwd(), sym: user === 'root' ? '#' : '$' }
+})()
 
 // 증적 이미지 무결성 — 파일 내용의 SHA-256(사후 위변조 탐지용). 실패해도 증적 생성은 막지 않음.
 function sha256File(p) {
@@ -168,12 +177,14 @@ function rawCmdTerminalHtml({ url, dateOut, curlOut }) {
   }
   const curlLines = String(curlOut || '(curl 응답 없음)').split('\n')
     .map((l) => `<div style="color:${colorOf(l)}">${esc(l) || '&nbsp;'}</div>`).join('')
+  // 실제 collector 컨테이너의 셸 프롬프트(user@host:cwd) — 실측값.
+  const prompt = `<span style="color:#4ade80">${esc(SHELL.user)}@${esc(SHELL.host)}</span>:<span style="color:#60a5fa">${esc(SHELL.cwd)}</span><span style="color:#94a3b8">${SHELL.sym}</span>`
   return `<div style="max-width:640px;margin:14px auto 24px;background:#0b0f17;border:1px solid #1f2937;border-radius:12px;overflow:hidden;font-family:ui-monospace,Menlo,Consolas,monospace">
     <div style="padding:8px 14px;background:#111827;border-bottom:1px solid #1f2937;color:#94a3b8;font-family:system-ui,sans-serif;font-size:11px">실제 명령 실행 결과 — 원문 그대로 (무가공)</div>
     <div style="padding:12px 16px;font-size:13px;line-height:1.85;color:#cbd5e1">
-      <div style="color:#e2e8f0"><span style="color:#4ade80">$</span> date -u</div>
+      <div style="color:#e2e8f0">${prompt} date -u</div>
       <div style="color:#fde047">${esc(dateOut || '(date 출력 없음)')}</div>
-      <div style="color:#e2e8f0"><span style="color:#4ade80">$</span> curl -sSI ${esc(url)}</div>
+      <div style="color:#e2e8f0">${prompt} curl -sSI ${esc(url)}</div>
       ${curlLines}
     </div>
   </div>`

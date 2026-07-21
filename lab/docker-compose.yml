@@ -143,6 +143,7 @@ services:
 
   evidence-collector:
     restart: unless-stopped
+    hostname: lab-evidence-collector   # 증적의 셸 프롬프트에 표시되는 실제 호스트명
     build: ./evidence-collector
     environment:
       # 수집기가 접근할 랩 타깃(내부 네트워크 서비스명)
