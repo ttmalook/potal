@@ -37,7 +37,7 @@ function cmdNote(cmd) {
   const c = String(cmd || '')
   if (/^date\b/.test(c)) return '촬영 시각 (수집 서버 UTC)'
   if (/^ncat\b/.test(c)) return '공격자 관점 — 서비스 포트로 실제 접속 시도'
-  if (/^nmap\b/.test(c)) return '포트 열림/닫힘 상태 확인'
+  if (/^nmap\b/.test(c)) return /ssl-enum/.test(c) ? '서버 제공 암호/프로토콜 열거' : /ssh2-enum/.test(c) ? '서버 제공 SSH 알고리즘 열거' : '포트 열림/닫힘 상태 확인'
   if (/^curl\b/.test(c)) return '실제 HTTP 응답 헤더 확인'
   if (/^openssl\b/.test(c)) return 'TLS 핸드셰이크·인증서 확인'
   if (/^dig\b/.test(c)) return 'DNS 레코드 조회'
@@ -561,6 +561,19 @@ async function runCmdCombined(file, args, timeout = 15000) {
   try { return merge(await execFileP(file, args, { timeout })) || null }
   catch (e) { return merge(e) || null }
 }
+
+// 공격 시나리오: 공격자가 약한 프로토콜(TLS 1.0)로 강제 협상을 시도한다.
+//  @SECLEVEL=0 으로 클라이언트 제한을 풀어 '서버가 수락/거부'하는지를 실제로 본다.
+//  취약 서버 → 협상 수락(다운그레이드 성공) · 조치 서버 → 거부(Cipher is (NONE)/handshake failure).
+async function opensslWeakHandshake(host) {
+  return await runShell(`echo | timeout 10 openssl s_client -connect ${host}:443 -tls1 -cipher DEFAULT@SECLEVEL=0 2>&1`)
+}
+// s_client 원문에서 핵심 라인만 발췌(원문 그대로, 노이즈 제거).
+function trimOpenssl(raw) {
+  const lines = String(raw || '').split('\n')
+  const keep = lines.filter((l) => /CONNECTED|New,\s|^\s*Protocol\s*:|^\s*Cipher\s*:|Verify return code|alert|:error:|no protocols|no cipher|handshake failure/i.test(l))
+  return (keep.length ? keep : lines.slice(0, 8)).slice(0, 12).join('\n')
+}
 async function runShell(cmd, timeout = 15000) {
   try {
     const { stdout } = await execFileP('sh', ['-c', cmd], { timeout })
@@ -846,10 +859,32 @@ app.post('/collect', async (req, res) => {
         const pA = parseSslEnum(rawA)
         const weak = (ps) => ps.filter((p) => /SSLv|TLSv1\.0|TLSv1\.1/.test(p))
         const isProto = it.includes('protocol')
-        const shotB = await renderTerminalScreenshot([{ cmd: cmd(TLS_VUL), raw: trimSslEnum(rawB) }],
-          `⚠ 제공 프로토콜: ${pB.protocols.join(', ')} · 암호 강도(least): ${pB.grade}`, 'before', sslEnumLineClass)
-        const shotA = await renderTerminalScreenshot([{ cmd: cmd(TLS_REM), raw: trimSslEnum(rawA) }],
-          `✓ 제공 프로토콜: ${pA.protocols.join(', ')} · 암호 강도(least): ${pA.grade}`, 'after', sslEnumLineClass)
+        // 공격 시나리오: 약한 프로토콜(TLS 1.0) 강제 협상 시도(openssl). 취약=수락(다운그레이드)·조치=거부.
+        const oCmd = (host) => `openssl s_client -connect ${host}:443 -tls1 -cipher DEFAULT@SECLEVEL=0`
+        const oB = await opensslWeakHandshake(TLS_VUL)
+        const oA = await opensslWeakHandshake(TLS_REM)
+        const hasScenario = !!(oB && oA)
+        // 협상 성공 판정 — 실제 cipher 가 잡혔는가(‘(NONE)’ 은 핸드셰이크 실패).
+        const negotiated = (raw) => { const m = String(raw || '').match(/Cipher is (\S+)/); return !!(m && m[1] && m[1] !== '(NONE)') }
+        // openssl(약한 협상) + nmap(enum) 라인 공용 하이라이터 — 거부/약함=초록, 약한협상 성공/구프로토콜=빨강.
+        const hl = (l) => {
+          if (/\(NONE\)|no protocols|no cipher|handshake failure|alert|:error:/i.test(l)) return 'good'
+          if (/New,\s*(TLSv1\.[01]|SSLv)|Cipher is (?!\(NONE\))\S/i.test(l)) return 'bad'
+          if (/CONNECTED|Verify return|^\s*Protocol\s*:|^\s*Cipher\s*:/i.test(l)) return 'status'
+          return sslEnumLineClass(l)
+        }
+        const segB = hasScenario ? [{ cmd: oCmd(TLS_VUL), raw: trimOpenssl(oB) }] : []
+        const segA = hasScenario ? [{ cmd: oCmd(TLS_REM), raw: trimOpenssl(oA) }] : []
+        segB.push({ cmd: cmd(TLS_VUL), raw: trimSslEnum(rawB) })
+        segA.push({ cmd: cmd(TLS_REM), raw: trimSslEnum(rawA) })
+        const sumB = hasScenario
+          ? `⚠ 공격자 다운그레이드 성공 — TLS 1.0 협상 수락(도청 가능) · nmap 암호 강도(least): ${pB.grade}`
+          : `⚠ 제공 프로토콜: ${pB.protocols.join(', ')} · 암호 강도(least): ${pB.grade}`
+        const sumA = hasScenario
+          ? `✓ 다운그레이드 거부 — TLS 1.0 협상 실패(핸드셰이크 거부) · nmap 암호 강도(least): ${pA.grade}`
+          : `✓ 제공 프로토콜: ${pA.protocols.join(', ')} · 암호 강도(least): ${pA.grade}`
+        const shotB = await renderTerminalScreenshot(segB, sumB, 'before', hasScenario ? hl : sslEnumLineClass)
+        const shotA = await renderTerminalScreenshot(segA, sumA, 'after', hasScenario ? hl : sslEnumLineClass)
         const technical_diff = isProto
           ? [
               { key: '구버전 프로토콜(TLS1.0/1.1) 제공', before: weak(pB.protocols).length ? '예 (' + weak(pB.protocols).join(', ') + ')' : '아니오', after: weak(pA.protocols).length ? '예' : '아니오', changed: weak(pB.protocols).length !== weak(pA.protocols).length },
@@ -859,12 +894,15 @@ app.post('/collect', async (req, res) => {
               { key: '암호 강도 (nmap least strength)', before: pB.grade, after: pA.grade, changed: pB.grade !== pA.grade },
               { key: '제공 프로토콜', before: pB.protocols.join(', '), after: pA.protocols.join(', '), changed: pB.protocols.join() !== pA.protocols.join() }
             ]
+        const tdScenario = hasScenario
+          ? [{ key: '공격자 약한 협상(TLS 1.0) 강제', before: negotiated(oB) ? '수락됨 (다운그레이드 성공)' : '거부', after: negotiated(oA) ? '수락됨' : '거부됨 (핸드셰이크 실패)', changed: negotiated(oB) !== negotiated(oA) }]
+          : []
         return res.json({
           ok: true,
-          visual_before: { label: `조치 전 · nmap ssl-enum (${isProto ? '구버전 프로토콜 제공' : '약한 암호(F)'})`, screenshot: shotB, variant: 'before' },
-          visual_after: { label: `조치 후 · nmap ssl-enum (${isProto ? 'TLS1.2+ 만' : '강한 암호(A)'})`, screenshot: shotA, variant: 'after' },
-          technical_diff,
-          raw_summary: { tool: 'nmap ssl-enum-ciphers' }
+          visual_before: { label: hasScenario ? '조치 전 · 약한 협상(TLS 1.0) 강제 → 수락' : `조치 전 · nmap ssl-enum (${isProto ? '구버전 프로토콜 제공' : '약한 암호(F)'})`, screenshot: shotB, variant: 'before' },
+          visual_after: { label: hasScenario ? '조치 후 · 약한 협상(TLS 1.0) 강제 → 거부' : `조치 후 · nmap ssl-enum (${isProto ? 'TLS1.2+ 만' : '강한 암호(A)'})`, screenshot: shotA, variant: 'after' },
+          technical_diff: [...tdScenario, ...technical_diff],
+          raw_summary: { tool: hasScenario ? 'openssl s_client(약한 협상) + nmap ssl-enum' : 'nmap ssl-enum-ciphers' }
         })
       }
 
