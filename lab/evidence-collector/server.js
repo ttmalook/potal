@@ -11,9 +11,15 @@ import net from 'node:net'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import crypto from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
 const execFileP = promisify(execFile)
+
+// 증적 이미지 무결성 — 파일 내용의 SHA-256(사후 위변조 탐지용). 실패해도 증적 생성은 막지 않음.
+function sha256File(p) {
+  try { return 'sha256:' + crypto.createHash('sha256').update(readFileSync(p)).digest('hex') } catch { return null }
+}
 
 const app = express()
 app.use(express.json())
@@ -186,6 +192,18 @@ async function captureXss(url) {
       await page.waitForTimeout(80)
     }
     await page.waitForTimeout(120)
+    // 촬영 시각 캡션 — 대상 서버의 응답 Date 헤더(타깃 자신이 찍은 시각)를 근거로 표기.
+    //  curl/nmap/dig 증적의 🕒 촬영 캡션과 동일한 근거·형식. Date 없으면 현재 시각 폴백.
+    const dateHdr = resp ? (resp.headers()['date'] || '') : ''
+    const capText = kstCaptionFromRaw(dateHdr ? 'date: ' + dateHdr : '')
+    await page.evaluate((t) => {
+      const host = document.querySelector('.page') || document.body
+      const cap = document.createElement('div')
+      cap.style.cssText = 'margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb;color:#b45309;font-family:system-ui,sans-serif;font-size:12.5px;font-weight:700'
+      cap.textContent = '🕒 ' + t + ' · 대상 응답 Date 기준'
+      host.appendChild(cap)
+    }, capText)
+    await page.waitForTimeout(30)
     const file = `${ART}/${Date.now()}-${Math.random().toString(36).slice(2)}.png`
     // 카드(.page)만 타이트하게 크롭 → 증표가 썸네일을 꽉 채워 전/후 대비가 선명.
     const card = await page.$('.page')
@@ -618,6 +636,21 @@ function headerSpec(issueType) {
 app.get('/health', (_req, res) => res.json({ ok: true }))
 
 app.post('/collect', async (req, res) => {
+  // 증적 무결성: 응답 직전 각 스크린샷 이미지의 SHA-256 을 계산해 첨부(사후 위변조 탐지용).
+  //  모든 반환 경로를 한 곳에서 커버하기 위해 res.json 을 감싼다. 해시 실패는 증적을 막지 않음.
+  const _json = res.json.bind(res)
+  res.json = (payload) => {
+    try {
+      if (payload && typeof payload === 'object') {
+        for (const key of ['visual_before', 'visual_after']) {
+          const v = payload[key]
+          if (v && v.screenshot) v.sha256 = sha256File(v.screenshot)
+        }
+      }
+    } catch { /* noop */ }
+    return _json(payload)
+  }
+
   const { templateId, issueType } = req.body || {}
 
   // ── 레시피 주도(제네릭) 핸들러 — SSC AI Lab Builder ──────────────────

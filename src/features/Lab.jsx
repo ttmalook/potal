@@ -411,6 +411,11 @@ function LabShot({ v, fallbackLabel, variant }) {
           <img className="lab-shot-img" src={v.url} alt={label} onError={() => setImgError(true)} />
         </div>
         <div className="lab-shot-label">{label} · 실제 캡처</div>
+        {v?.sha256 && (
+          <div className="lab-shot-hash" title={`이 증적 이미지의 SHA-256 (사후 위변조 탐지용)\n${v.sha256}`}>
+            🔒 무결성 SHA-256 …{String(v.sha256).replace(/^sha256:/, '').slice(-16)}
+          </div>
+        )}
       </div>
     )
   }

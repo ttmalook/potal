@@ -2035,6 +2035,7 @@
 .lab-shot-frame { max-height: 620px; overflow: auto; background: #f8fafc; display: flex; align-items: flex-start; justify-content: center; }
 .lab-shot-img { width: 100%; height: auto; display: block; }
 .lab-shot-label { font-size: 10px; color: var(--text-secondary); padding: 6px 8px; background: var(--bg-soft); border-top: 1px solid var(--border); }
+.lab-shot-hash { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 9.5px; letter-spacing: .2px; color: var(--text-tertiary, var(--text-secondary)); padding: 4px 8px; background: var(--bg-soft); border-top: 1px dashed var(--border); cursor: help; }
 .lab-shot-offline { flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 130px; padding: 20px 16px; text-align: center; color: var(--text-secondary); }
 .lab-shot-offline-title { font-size: 12px; font-weight: 600; color: var(--text-primary); }
 .lab-shot-offline-desc { font-size: 11px; color: var(--text-secondary); max-width: 240px; }
