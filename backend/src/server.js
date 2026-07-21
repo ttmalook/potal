@@ -124,6 +124,34 @@ app.post('/api/guides/interpret', async (req, res) => {
 })
 
 // SSC API 토큰 (조직 공용) — 관리자만 설정/삭제. 토큰 값은 어떤 응답에도 반환하지 않음(상태만).
+/**
+ * @openapi
+ * /api/settings/ssc-token:
+ *   get:
+ *     tags: [settings]
+ *     summary: SSC API 토큰 설정 상태 (값 미노출 · 관리자 전용)
+ *     responses:
+ *       200: { description: 상태, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, status: { type: object, description: 'configured 등 상태(토큰 원문 없음)' } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *   put:
+ *     tags: [settings]
+ *     summary: SSC API 토큰 설정/교체 (관리자 전용)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { type: object, required: [token], properties: { token: { type: string, format: password, description: 'SSC API 토큰(응답/로그에 노출 안 됨)' } } }
+ *     responses:
+ *       200: { description: 설정됨(상태만 반환), content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, status: { type: object } } } } } }
+ *       400: { description: 유효하지 않은 토큰, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *   delete:
+ *     tags: [settings]
+ *     summary: SSC API 토큰 삭제 (관리자 전용)
+ *     responses:
+ *       200: { description: 삭제됨, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, status: { type: object } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 app.get('/api/settings/ssc-token', requireAdmin, async (_req, res) => {
   res.json({ ok: true, status: await sscTokenStatus() })
 })
@@ -154,6 +182,17 @@ const slim = (e) => ({ key: e.key, title: e.title, factor: e.factor, severity: e
 const compileLocks = new Set() // 동일 issueType 동시 컴파일 방지
 
 // 커버리지 현황(SSC 전체 ↔ 지원)
+/**
+ * @openapi
+ * /api/admin/lab-coverage:
+ *   get:
+ *     tags: [admin]
+ *     summary: 검증랩 커버리지 — SSC issue_type 대비 지원/미지원 집계 (관리자 전용)
+ *     responses:
+ *       200: { description: 커버리지 집계, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, sscTotal: { type: integer }, toBuildCount: { type: integer }, buckets: { type: object } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *       502: { description: SSC 카탈로그 조회 실패, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ */
 app.get('/api/admin/lab-coverage', requireAdmin, async (_req, res) => {
   const cat = await getIssueTypeCatalog({ force: false })
   if (!cat?.ok) return res.status(502).json({ ok: false, errorCode: 'SSC_CATALOG_FAIL', message: 'SSC 카탈로그 조회 실패(토큰 확인)' })
@@ -252,6 +291,16 @@ function sendSscError(res, error) {
 // ---------------------------------------------------------------------
 // 1. Health — Backend 실행 여부 + Token 설정 여부 (Token 값은 반환 금지)
 // ---------------------------------------------------------------------
+/**
+ * @openapi
+ * /api/ssc/health:
+ *   get:
+ *     tags: [ssc]
+ *     summary: SSC 연동 상태 (baseUrl · 토큰 설정 여부)
+ *     description: SecurityScorecard API 연동 준비 상태 확인. 토큰 값은 노출하지 않고 설정 여부만 반환.
+ *     responses:
+ *       200: { description: 상태, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, baseUrl: { type: string, example: 'https://api.securityscorecard.io' }, tokenConfigured: { type: boolean, example: true } } } } } }
+ */
 app.get('/api/ssc/health', (_req, res) => {
   res.json({
     ok: true,
@@ -263,6 +312,22 @@ app.get('/api/ssc/health', (_req, res) => {
 // ---------------------------------------------------------------------
 // 2. Company summary
 // ---------------------------------------------------------------------
+/**
+ * @openapi
+ * /api/ssc/company/{domain}/summary:
+ *   get:
+ *     tags: [ssc]
+ *     summary: 회사 스코어 요약 (SSC read-only)
+ *     parameters:
+ *       - in: path
+ *         name: domain
+ *         required: true
+ *         schema: { type: string }
+ *         example: demo-commerce.example.com
+ *     responses:
+ *       200: { description: 요약, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, domain: { type: string }, summary: { type: object }, raw: { type: object } } } } } }
+ *       502: { description: SSC API 오류, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ */
 app.get('/api/ssc/company/:domain/summary', async (req, res) => {
   const domain = cleanDomain(req.params.domain)
   const r = await sscGet(`/companies/${encodeURIComponent(domain)}`)
@@ -273,6 +338,18 @@ app.get('/api/ssc/company/:domain/summary', async (req, res) => {
 // ---------------------------------------------------------------------
 // 3. Factors
 // ---------------------------------------------------------------------
+/**
+ * @openapi
+ * /api/ssc/company/{domain}/factors:
+ *   get:
+ *     tags: [ssc]
+ *     summary: 회사 팩터별 점수 (SSC read-only)
+ *     parameters:
+ *       - { in: path, name: domain, required: true, schema: { type: string }, example: demo-commerce.example.com }
+ *     responses:
+ *       200: { description: 팩터, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, domain: { type: string }, factors: { type: array, items: { type: object } } } } } } }
+ *       502: { description: SSC API 오류, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ */
 app.get('/api/ssc/company/:domain/factors', async (req, res) => {
   const domain = cleanDomain(req.params.domain)
   const r = await sscGet(`/companies/${encodeURIComponent(domain)}/factors`)
@@ -283,6 +360,18 @@ app.get('/api/ssc/company/:domain/factors', async (req, res) => {
 // ---------------------------------------------------------------------
 // 4. Issues
 // ---------------------------------------------------------------------
+/**
+ * @openapi
+ * /api/ssc/company/{domain}/issues:
+ *   get:
+ *     tags: [ssc]
+ *     summary: 회사 이슈(리스크) 목록 (SSC read-only)
+ *     parameters:
+ *       - { in: path, name: domain, required: true, schema: { type: string }, example: demo-commerce.example.com }
+ *     responses:
+ *       200: { description: 이슈, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, domain: { type: string }, issues: { type: array, items: { type: object } } } } } } }
+ *       502: { description: SSC API 오류, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ */
 app.get('/api/ssc/company/:domain/issues', async (req, res) => {
   const domain = cleanDomain(req.params.domain)
   const r = await sscGet(`/companies/${encodeURIComponent(domain)}/issues`)
@@ -293,6 +382,16 @@ app.get('/api/ssc/company/:domain/issues', async (req, res) => {
 // ---------------------------------------------------------------------
 // 5. Metadata — issue types
 // ---------------------------------------------------------------------
+/**
+ * @openapi
+ * /api/ssc/metadata/issue-types:
+ *   get:
+ *     tags: [ssc]
+ *     summary: SSC issue_type 메타데이터 목록 (SSC read-only)
+ *     responses:
+ *       200: { description: issue_type 목록, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, issueTypes: { type: array, items: { type: object } } } } } } }
+ *       502: { description: SSC API 오류, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ */
 app.get('/api/ssc/metadata/issue-types', async (_req, res) => {
   const r = await sscGet('/metadata/issue-types')
   if (!r.ok) return sendSscError(res, r.error)
@@ -302,6 +401,28 @@ app.get('/api/ssc/metadata/issue-types', async (_req, res) => {
 // ---------------------------------------------------------------------
 // 6. Import Risk — summary + factors + issues → Risk Findings 통합
 // ---------------------------------------------------------------------
+/**
+ * @openapi
+ * /api/ssc/import-risk:
+ *   post:
+ *     tags: [ssc]
+ *     summary: SSC 리스크 수집 — summary+factors+issues 를 리스크 항목으로 통합 (권한 findings:write)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [domain]
+ *             properties:
+ *               domain: { type: string, example: demo-commerce.example.com }
+ *               customerId: { type: string, nullable: true }
+ *               customerName: { type: string, nullable: true }
+ *     responses:
+ *       200: { description: 수집 결과(리스크 항목), content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+ *       400: { description: domain 누락, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 app.post('/api/ssc/import-risk', requirePerm('findings', 'write'), async (req, res) => {
   const { customerId, customerName } = req.body || {}
   const domain = cleanDomain(req.body?.domain)

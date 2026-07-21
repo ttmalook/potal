@@ -44,7 +44,7 @@ import { loadInterpretation, cachedInterpretation } from '../lib/interpret.js'
 import { catalogNameKo, factorNameKo, catalogEntry, canonicalIssueKey, catalogGroups, KO_SEVERITY } from '../data/sandboxCatalog.js'
 import { getRemediationGuide, GUIDE_ISSUE_TYPES, guideRowMeta } from '../data/remediationSteps.js'
 import { frameworksForCategory, complianceByIndustry } from '../data/compliance.js'
-import { SscBackendImport, SscSmokeTest, RiskFindingsRealPanel, IssueTypeSummary } from '../features/SscApi.jsx'
+import { SscBackendImport, RiskFindingsRealPanel, IssueTypeSummary } from '../features/SscApi.jsx'
 import { ENABLE_DEV_MOCKS } from '../config/runtime.js'
 import { ValidationSandboxRealPanel, LabEvidenceView, LabEvidenceSteps, SecOverview, SecFix, SecVerifyCommands, SecWrap } from '../features/Lab.jsx'
 import { GUIDES as LAB_GUIDES, guideKey as labGuideKey } from '../../backend/src/remediationGuides.js' // 조치 방향 SSOT(검증랩과 공유)
@@ -2420,11 +2420,7 @@ export function AuditLog() {
         : status === 'error' ? <EmptyState title="감사 로그를 불러올 수 없습니다" desc="관리자 권한이 필요합니다 (Backend 연결 확인)." />
           : rows.length ? <div className="card no-pad"><DataTable columns={columns} rows={rows} renderCell={renderCell} rowId={(r) => r.id} pageSize={15} /></div>
             : <EmptyState title="기록된 이벤트가 없습니다" desc="사용자·보안·시스템 이벤트가 발생하면 여기에 자동 기록됩니다." />}
-
-      {/* Partner Admin 내부용 — SSC API Smoke Test */}
-      <div style={{ marginTop: 24 }}>
-        <SscSmokeTest />
-      </div>
+      {/* SSC API 수동 호출은 관리 > API 문서(Swagger 'Try it out')로 이관됨 */}
     </div>
   )
 }
