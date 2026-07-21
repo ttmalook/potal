@@ -29,10 +29,15 @@ import {
   EmptyState
 } from '../components/common.jsx'
 
+// 팩 id 는 (고객사 + 이슈)별로 안정적 — 같은 이슈를 여러 번 재현/지정해도 하나의 팩을 업서트한다.
+//  → labRunId 만 바뀌며 '대표 증적'이 재지정된다(팩이 중복 생성되지 않음).
+export const labPackId = (run) =>
+  'EP-LAB-' + canonicalIssueKey(run.issueType) + '-' + String(run.customer || 'none').trim().replace(/\s+/g, '_')
+
 export function packFromRun(run) {
   const now = new Date().toISOString().slice(0, 10)
   return {
-    id: 'EP-LAB-' + String(run.id).replace('RUN-', ''),
+    id: labPackId(run),
     title: `${catalogNameKo(run.issueType)} — 파트너 검증랩 참고 증적`,
     customer: run.customer || '—',
     domain: run.sscLookupDomain || run.domain || '—',
@@ -140,7 +145,7 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
     if (!endpoint || !findingKey) return
     setRunStatus('loading'); setRunError(null)
     try {
-      await runLabPoC({
+      const run = await runLabPoC({
         issueType: findingKey,
         customer: endpoint.customer || null,   // 증적 팩이 고객사에 귀속되도록(없으면 팩이 '—'로 저장되어 드로어에서 누락)
         domain: endpoint.sscLookupDomain || null,
@@ -149,7 +154,17 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
         sscLookupDomain: endpoint.sscLookupDomain || null
       })
       setRunStatus('idle')
-      app?.showToast?.('Partner Lab PoC 실행 완료 — 최근 실행 목록에서 Evidence를 확인하세요.')
+      // 최신 기본: 이 이슈의 대표 증적 팩이 이미 있으면 방금 만든 최신 런으로 자동 재지정.
+      //  (팩이 없으면 자동 생성하지 않음 — 담기는 사용자가 명시적으로)
+      if (run?.id) {
+        const pid = labPackId({ issueType: findingKey, customer: endpoint.customer })
+        if ((app?.evidencePacks || []).some((p) => p.id === pid)) {
+          app?.updateEvidencePack?.(pid, { labRunId: run.id })
+          app?.showToast?.({ tone: 'success', text: '재현 완료 — 대표 증적을 최신으로 갱신했습니다.' })
+        } else {
+          app?.showToast?.('재현 완료 — 최근 실행 목록에서 증적을 확인하고 대표로 지정하세요.')
+        }
+      }
       refreshRuns()
     } catch (e) {
       setRunError(e.payload || { message: e.message })
@@ -289,6 +304,17 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
         const totalPages = Math.max(1, Math.ceil(shownRuns.length / PAGE))
         const page = Math.min(runsPage, totalPages - 1)
         const visible = shownRuns.slice(page * PAGE, page * PAGE + PAGE)
+        // 현재 대표 증적으로 지정된 런 id 집합(팩의 labRunId). 이 런이 팩·리포트에 실제 사용된다.
+        const repRunIds = new Set((app?.evidencePacks || []).filter((p) => p.source === 'lab').map((p) => p.labRunId))
+        // 특정 런을 대표 증적으로 지정 — 이 이슈의 팩이 있으면 재지정(상태 보존), 없으면 생성.
+        const designate = (r) => {
+          if (r.status !== 'succeeded') { app?.showToast?.({ tone: 'warning', text: '성공한 재현만 대표로 지정할 수 있습니다.' }); return }
+          const pid = labPackId(r)
+          const existing = (app?.evidencePacks || []).find((p) => p.id === pid)
+          if (existing) app?.updateEvidencePack?.(pid, { labRunId: r.id, issueType: r.issueType, customer: r.customer })
+          else app?.addEvidencePack?.(packFromRun(r))
+          app?.showToast?.({ tone: 'success', text: '대표 증적으로 지정됨 — 팩·전달 리포트에 이 증적이 사용됩니다.' })
+        }
         const toggle = (id) => setSelectedRuns((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
         const allChecked = visible.length > 0 && visible.every((r) => selectedRuns.has(r.id))
         const toggleAll = () => setSelectedRuns(() => (allChecked ? new Set() : new Set(visible.map((r) => r.id))))
@@ -322,7 +348,7 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
             <thead><tr>
               <th style={{ width: 32 }}><input type="checkbox" checked={allChecked} onChange={toggleAll} aria-label="전체 선택" /></th>
               <th style={{ width: 44 }}>순번</th>
-              <th>실행 ID</th><th>점검 대상</th><th>리스크 항목</th><th>확인 방식</th><th>결과</th><th>증적 상태</th><th>상세</th>
+              <th>실행 ID</th><th>점검 대상</th><th>리스크 항목</th><th>확인 방식</th><th>결과</th><th>대표 증적</th><th>상세</th>
             </tr></thead>
             <tbody>
               {visible.map((r, i) => (
@@ -334,7 +360,13 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
                   <td>{catalogNameKo(r.issueType)}</td>
                   <td>{r.collector === 'docker' ? '자동 캡처' : r.collector}</td>
                   <td><StatusBadge status={r.status === 'succeeded' ? 'Success' : r.status === 'unsupported' ? 'None' : 'Failed'} /></td>
-                  <td><span className="badge badge-soft badge-purple">{evidenceStateLabel(r)}</span></td>
+                  <td>
+                    {repRunIds.has(r.id)
+                      ? <span className="badge badge-soft badge-success">★ 대표 증적</span>
+                      : (app?.can?.('evidence') && r.status === 'succeeded')
+                        ? <button className="btn btn-mini" onClick={() => designate(r)}>대표로 지정</button>
+                        : <span className="hint-text">—</span>}
+                  </td>
                   <td><button className="btn btn-mini" onClick={() => setDrawerRun(r)}>증적 보기</button></td>
                 </tr>
               ))}

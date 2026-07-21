@@ -57,7 +57,7 @@ import { engineGuide } from '../data/engineGuides.js'
 // 대시보드 프로세스 단계 / 지표 → 아이콘 이름 매핑
 const PROC_ICON = { 1: 'customers', 2: 'domains', 3: 'collect', 4: 'findings', 5: 'sandbox', 6: 'evidence', 7: 'customer-view', 8: 'remediation', 9: 'rescan' }
 const STAT_ICON = { customers: 'customers', domains: 'domains', evidenceAll: 'evidence', evidenceReady: 'evidence', newFindings: 'findings', sandboxRate: 'sandbox', reobservation: 'rescan' }
-import { getLabRun, runLabPoC } from '../lib/labApi.js'
+import { getLabRun } from '../lib/labApi.js'
 
 // 공통 고지 문구 박스
 function LegalFooter() {
@@ -2034,33 +2034,11 @@ export function DeliveryReportViewer({ custName, app }) {
   const [typeSummary, setTypeSummary] = useState([])
   const [drillIssue, setDrillIssue] = useState(null)
   const [step, setStep] = useState(0) // 0=리포트 검토, 1=전달
-  const [recap, setRecap] = useState({ status: 'idle', done: 0, total: 0, ok: 0 })
   const labPacks = (app?.evidencePacks || []).filter((p) => p.source === 'lab' && p.excluded !== true
     && (hostOfDom(p.sscLookupDomain || p.domain) === hostOfDom(scoreDomain) || p.customer === custName))
   const today = new Date().toISOString().slice(0, 10)
-
-  // 전달 시점 재촬영 — 각 검증랩 팩을 지금 새로 실행(실촬영 시각 갱신) → labRunId 교체.
-  //  랩은 표준 타깃 대상이라 issueType만 있으면 되고, 나머지 컨텍스트는 기록 라벨용으로 전달.
-  const recaptureAll = async () => {
-    if (!labPacks.length || recap.status === 'running') return
-    setRecap({ status: 'running', done: 0, total: labPacks.length, ok: 0 })
-    let ok = 0
-    for (const p of labPacks) {
-      try {
-        const run = await runLabPoC({
-          issueType: p.issueType,
-          domain: p.sscLookupDomain || p.domain || null,
-          serviceEndpoint: p.serviceEndpoint || null,
-          accessUrl: p.accessUrl || null,
-          sscLookupDomain: p.sscLookupDomain || null
-        })
-        if (run?.id) { await app.updateEvidencePack?.(p.id, { labRunId: run.id }); ok++ }
-      } catch { /* 개별 실패는 건너뜀 */ }
-      setRecap((r) => ({ ...r, done: r.done + 1 }))
-    }
-    setRecap({ status: 'done', done: labPacks.length, total: labPacks.length, ok })
-    app.showToast?.({ tone: ok ? 'success' : 'danger', text: ok ? `증적 ${ok}건 최신 촬영 완료 · 이미지에 현재 시각 반영됨` : '재촬영 실패 — 검증랩 컬렉터 상태를 확인하세요' })
-  }
+  // 전달 시점 재촬영은 제거됨 — 정적 랩 타깃 재촬영은 그림이 동일해 무의미.
+  //  대표 증적은 검증랩 화면에서 지정하며, 여기서는 팩이 가리키는 대표 런을 그대로 사용한다.
 
   useEffect(() => {
     let alive = true
@@ -2136,18 +2114,6 @@ export function DeliveryReportViewer({ custName, app }) {
           {typeSummary.length > 0
             ? <IssueTypeSummary rows={typeSummary} includeInfo={false} score={cvScore?.score} grade={cvScore?.grade} onSelectType={setDrillIssue} lastCol={deliveryCol} />
             : <EmptyState title="표시할 리스크가 없습니다" desc={`${custName}(${shownDomain || '—'})에 대해 수집된 SecurityScorecard 리스크가 없습니다.`} />}
-          {labPacks.length > 0 && app?.can?.('labs') && (
-            <div className="recap-foot cv-noprint">
-              <SecondaryButton onClick={recaptureAll} disabled={recap.status === 'running'}>
-                {recap.status === 'running' ? `증적 재촬영 중… (${recap.done}/${recap.total})` : '🕒 증적 재촬영(최신 시각으로)'}
-              </SecondaryButton>
-              <span className="hint-text">
-                {recap.status === 'done'
-                  ? <span style={{ color: 'var(--text-success)' }}>✓ {recap.ok}건 최신 촬영 완료 · 상세·PDF에 현재 시각 반영</span>
-                  : `전달 전 조치 전·후 증적을 지금 새로 촬영 · 대상 ${labPacks.length}건 · 전달본(PDF)에는 이 버튼이 포함되지 않습니다`}
-              </span>
-            </div>
-          )}
         </div>
 
         <div className={`report-step report-step-deliver ${step === 1 ? 'active' : ''}`}>
