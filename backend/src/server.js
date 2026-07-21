@@ -500,12 +500,63 @@ app.delete('/api/portal/domains/:id', requirePerm('domains', 'write'), async (re
   res.json({ ok: true })
 })
 
+/**
+ * @openapi
+ * /api/portal/evidence-packs:
+ *   get:
+ *     tags: [portal]
+ *     summary: 증적 팩 목록 (역할별 가시성 필터 적용)
+ *     responses:
+ *       200: { description: 증적 팩 목록, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, evidencePacks: { type: array, items: { $ref: '#/components/schemas/EvidencePack' } } } } } } }
+ *   post:
+ *     tags: [portal]
+ *     summary: 증적 팩 생성/업서트 (권한 evidence:write)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/EvidencePack' }
+ *     responses:
+ *       200: { description: 생성된 팩, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, evidencePack: { $ref: '#/components/schemas/EvidencePack' } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 app.get('/api/portal/evidence-packs', async (req, res) => res.json({ ok: true, evidencePacks: visibleTo(req, await portal.getEvidencePacks()) }))
 app.post('/api/portal/evidence-packs', requirePerm('evidence', 'write'), async (req, res) => {
   const p = await portal.addEvidencePack(stampOwner(req, req.body || {}))
   auditReq(req, 'user', '증적 팩 생성', p?.title || p?.id, 'Created')
   res.json({ ok: true, evidencePack: p })
 })
+/**
+ * @openapi
+ * /api/portal/evidence-packs/{id}:
+ *   put:
+ *     tags: [portal]
+ *     summary: 증적 팩 수정 (권한 evidence:write · 소유권 확인)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema: { $ref: '#/components/schemas/EvidencePack' }
+ *     responses:
+ *       200: { description: 수정된 팩, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, evidencePack: { $ref: '#/components/schemas/EvidencePack' } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *   delete:
+ *     tags: [portal]
+ *     summary: 증적 팩 삭제 (권한 evidence:write · 소유권 확인)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: 삭제 완료, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 app.put('/api/portal/evidence-packs/:id', requirePerm('evidence', 'write'), async (req, res) => {
   if (!(await guardMutate(req, res, portal.getEvidencePacks(), req.params.id))) return
   const p = await portal.updateEvidencePack(req.params.id, req.body || {})
@@ -538,13 +589,72 @@ app.get('/api/public/shared/:token', rateLimit({ windowMs: 60000, max: 30 }), as
 // ---------------------------------------------------------------------
 // Validation Sandbox (Partner Lab PoC) — 참고용 증적 생성 (수집기: simulated|docker)
 // ---------------------------------------------------------------------
+/**
+ * @openapi
+ * /api/lab/templates:
+ *   get:
+ *     tags: [lab]
+ *     summary: 검증랩 지원 issue_type 목록
+ *     responses:
+ *       200: { description: 지원 항목, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, templates: { type: array, items: { type: string } } } } } } }
+ */
 app.get('/api/lab/templates', (_req, res) => res.json({ ok: true, templates: lab.supportedIssueTypes() }))
+/**
+ * @openapi
+ * /api/lab/runs:
+ *   get:
+ *     tags: [lab]
+ *     summary: 검증랩 재현 실행 기록 목록 (최신순)
+ *     responses:
+ *       200: { description: 실행 기록, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, runs: { type: array, items: { $ref: '#/components/schemas/LabRun' } } } } } } }
+ */
 app.get('/api/lab/runs', async (_req, res) => res.json({ ok: true, runs: await lab.getRuns() }))
+/**
+ * @openapi
+ * /api/lab/runs/{id}:
+ *   get:
+ *     tags: [lab]
+ *     summary: 실행 기록 단건 조회
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *         example: RUN-AB12CD34
+ *     responses:
+ *       200: { description: 실행 기록, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, run: { $ref: '#/components/schemas/LabRun' } } } } } }
+ *       404: { description: 없음, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ */
 app.get('/api/lab/runs/:id', async (req, res) => {
   const run = await lab.getRun(req.params.id)
   if (!run) return res.status(404).json({ ok: false, message: 'run not found' })
   res.json({ ok: true, run })
 })
+/**
+ * @openapi
+ * /api/lab/runs:
+ *   post:
+ *     tags: [lab]
+ *     summary: 검증랩 재현 실행 (조치 전/후 증적 생성)
+ *     description: 'issueType 에 해당하는 취약↔조치 타깃을 실제 재현해 증적을 만든다. 권한 labs:write 필요.'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [issueType]
+ *             properties:
+ *               issueType: { type: string, example: hsts_incorrect_v2 }
+ *               customer: { type: string, nullable: true, example: demo-commerce }
+ *               domain: { type: string, nullable: true, example: demo-commerce.example.com }
+ *               serviceEndpoint: { type: string, nullable: true }
+ *               accessUrl: { type: string, nullable: true }
+ *     responses:
+ *       200: { description: 실행 결과, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, run: { $ref: '#/components/schemas/LabRun' } } } } } }
+ *       400: { description: issueType 누락, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 app.post('/api/lab/runs', requirePerm('labs', 'write'), async (req, res) => {
   const issueType = String(req.body?.issueType || '').trim()
   if (!issueType) return res.status(400).json({ ok: false, errorCode: 'BAD_REQUEST', message: 'issueType이 필요합니다.' })
@@ -567,6 +677,21 @@ app.post('/api/lab/runs/delete', requireAdmin, async (req, res) => {
   const deleted = await lab.deleteRuns(ids)
   res.json({ ok: true, deleted })
 })
+/**
+ * @openapi
+ * /api/lab/runs/{id}:
+ *   delete:
+ *     tags: [lab]
+ *     summary: 실행 기록 삭제 (관리자 전용)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: 삭제 건수, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, deleted: { type: integer, example: 1 } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 app.delete('/api/lab/runs/:id', requireAdmin, async (req, res) => {
   const deleted = await lab.deleteRuns([req.params.id])
   res.json({ ok: true, deleted })

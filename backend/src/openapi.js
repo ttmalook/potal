@@ -41,6 +41,33 @@ const definition = {
           department: { type: 'string', nullable: true, example: null },
           permissions: { type: 'object', description: '역할별 권한 매트릭스(리소스→액션)' }
         }
+      },
+      LabRun: {
+        type: 'object',
+        description: '검증랩 재현 실행 결과(참고용 PoC 증적).',
+        properties: {
+          id: { type: 'string', example: 'RUN-AB12CD34' },
+          issueType: { type: 'string', example: 'hsts_incorrect_v2' },
+          customer: { type: 'string', nullable: true, example: 'demo-commerce' },
+          serviceEndpoint: { type: 'string', nullable: true, example: 'demo-commerce.example.com' },
+          status: { type: 'string', enum: ['succeeded', 'failed', 'unsupported'], example: 'succeeded' },
+          collector: { type: 'string', example: 'docker' },
+          startedAt: { type: 'string', format: 'date-time' },
+          endedAt: { type: 'string', format: 'date-time' },
+          evidence: { type: 'object', description: 'visual_before/after · technical_diff 등 증적' }
+        }
+      },
+      EvidencePack: {
+        type: 'object',
+        description: '리스크 + 관측값 + 증적 + 권고 묶음(고객 전달 단위).',
+        properties: {
+          id: { type: 'string', example: 'EP-LAB-hsts_incorrect-demo-commerce' },
+          customer: { type: 'string', example: 'demo-commerce' },
+          issueType: { type: 'string', example: 'hsts_incorrect_v2' },
+          source: { type: 'string', enum: ['lab', 'manual'], example: 'lab' },
+          labRunId: { type: 'string', nullable: true, example: 'RUN-AB12CD34' },
+          excluded: { type: 'boolean', description: '고객 전달에서 제외 여부', example: false }
+        }
       }
     },
     responses: {
