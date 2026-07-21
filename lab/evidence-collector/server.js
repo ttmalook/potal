@@ -535,6 +535,9 @@ async function renderTerminalScreenshot(segments, summary, variant, highlight = 
     await page.setContent(html, { waitUntil: 'load' })
     const file = `${ART}/${Date.now()}-${Math.random().toString(36).slice(2)}.png`
     const term = await page.$('.term')
+    // 콘텐츠가 길면(예: ssh2-enum 전체 열거) 뷰포트를 콘텐츠 높이에 맞춰 하단 요약이 잘리지 않게 한다.
+    const box = await term.boundingBox()
+    if (box) await page.setViewportSize({ width: Math.ceil(box.x + box.width + 36), height: Math.ceil(box.y + box.height + 36) })
     await term.screenshot({ path: file })
     return file
   } finally {
@@ -737,6 +740,18 @@ function trimSsh(raw) {
   const lines = String(raw || '').split('\n')
   const keep = lines.filter((l) => /kex:.*cipher:|no matching|unable to negotiate|Their offer:|Permission denied|Server host key|Connection established/i.test(l))
   return (keep.length ? keep : lines.slice(-8)).slice(0, 12).join('\n')
+}
+// ssh2-enum 을 이 이슈에 관련된 카테고리(cipher → encryption / 그 외 → kex·mac)만 남겨 길이 축소.
+function trimSshEnumFocus(raw, isCipher) {
+  const lines = String(raw || '').split('\n')
+  const out = []
+  let inTarget = false
+  for (const l of lines) {
+    if (/22\/tcp|ssh2-enum-algos:/i.test(l)) { out.push(l); continue }
+    if (/_algorithms:/i.test(l)) { inTarget = isCipher ? /encryption_algorithms/i.test(l) : /(kex|mac)_algorithms/i.test(l); if (inTarget) out.push(l); continue }
+    if (inTarget && /^\|\s+\S/.test(l)) out.push(l)
+  }
+  return out.length > 1 ? out.join('\n') : trimSshEnum(raw)
 }
 
 // 세션 쿠키 속성 추출 (SID 우선, 없으면 첫 쿠키)
@@ -1006,8 +1021,8 @@ app.post('/collect', async (req, res) => {
       }
       const segB = hasScenario ? [{ cmd: sCmd(SSH_VUL), raw: trimSsh(sB) }] : []
       const segA = hasScenario ? [{ cmd: sCmd(SSH_REM), raw: trimSsh(sA) }] : []
-      segB.push({ cmd: cmd(SSH_VUL), raw: trimSshEnum(rawB) })
-      segA.push({ cmd: cmd(SSH_REM), raw: trimSshEnum(rawA) })
+      segB.push({ cmd: cmd(SSH_VUL), raw: trimSshEnumFocus(rawB, isCipher) })
+      segA.push({ cmd: cmd(SSH_REM), raw: trimSshEnumFocus(rawA, isCipher) })
       const sumB = hasScenario
         ? `⚠ 약한 cipher(aes128-cbc) 협상 성공 — 약한 암호로 암호화 채널 수립(인증 단계 도달). 도청 위험.`
         : `⚠ 약한 ${isCipher ? 'cipher' : 'KEX/MAC'} 제공: ${weakListB.join(', ') || '없음'}`
