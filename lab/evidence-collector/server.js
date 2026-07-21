@@ -321,7 +321,6 @@ async function renderHeadersScreenshot(title, rows, variant) {
       </style>
       <h1>${title}</h1>
       <div class="resp"><div class="status">HTTP/1.1 200 OK</div>${rows.map(line).join('')}</div>
-      <div class="cap">${esc(kstCaptionFromRaw(''))}</div>
       <div class="foot">Partner Standard Lab · 참고용 PoC (고객환경 아님) · DevTools → Network → Response Headers 와 동일</div>`
     await page.setContent(html, { waitUntil: 'load' })
     const file = `${ART}/${Date.now()}-${Math.random().toString(36).slice(2)}.png`
@@ -423,32 +422,25 @@ function headerSummary(rawParsedHeaders, variant, focusKeys) {
 
 // 실제 명령 + 그 출력을 '터미널 화면'으로 렌더. 모든 스캔형 카테고리 공용.
 //  segments: [{ cmd, raw }]  (명령 여러 개 가능) · highlight(line)→'good'|'bad'|'dim'|'status'
-// 실제 명령 출력의 촬영 시각 → KST 캡션. HTTP 응답 Date 헤더(서버 실제 응답 시각) 우선,
-//  없으면(스캔류: nmap/openssl/dig 등) 명령 실행 직후인 현재 시각으로 폴백. tzdata 의존 없이 UTC+9 계산.
-function kstCaptionFromRaw(raw) {
-  let base = null
-  const m = String(raw || '').match(/^\s*date:\s*(.+)$/im)
-  if (m) { const d = new Date(m[1].trim()); if (!isNaN(d.getTime())) base = d }
-  if (!base) base = new Date()
-  const kst = new Date(base.getTime() + 9 * 3600 * 1000)
-  const p = (n) => String(n).padStart(2, '0')
-  return `촬영: ${kst.getUTCFullYear()}-${p(kst.getUTCMonth() + 1)}-${p(kst.getUTCDate())} ${p(kst.getUTCHours())}:${p(kst.getUTCMinutes())}:${p(kst.getUTCSeconds())} KST`
-}
-
 async function renderTerminalScreenshot(segments, summary, variant, highlight = lineClass) {
   const browser = await chromium.launch()
   try {
     const page = await (await browser.newContext({ viewport: { width: 860, height: 640 } })).newPage()
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const segArr = Array.isArray(segments) ? segments : [segments]
-    const caption = kstCaptionFromRaw(segArr.map((s) => s.raw || '').join('\n'))
-    const blocks = segArr.map((seg) => {
+    // 촬영 시각을 '실제 명령 출력'으로 — 터미널 맨 위에 date -u 실행 결과를 둔다(캡션 주입 대신).
+    //  collector 시스템 시각(UTC). header 계열은 아래 curl 응답의 date: 헤더(대상 시각)도 함께 남는다.
+    let dateOut = ''
+    try { dateOut = String((await execFileP('date', ['-u'], { timeout: 5000 })).stdout).trim() } catch { /* noop */ }
+    const dateBlock = `<div class="ln prompt">${shellPromptHtml()} date -u</div><div class="ln dateln">${esc(dateOut || '(date 출력 없음)')}</div>`
+    const cmdBlocks = segArr.map((seg) => {
       const outLines = String(seg.raw || '(출력 없음)').split('\n').map((l) => {
         const dateHit = /^\s*date:/i.test(l) ? ' dateln' : ''
         return `<div class="ln ${highlight(l)}${dateHit}">${esc(l) || '&nbsp;'}</div>`
       }).join('')
       return `<div class="ln prompt">${shellPromptHtml()} ${esc(seg.cmd)}</div>${outLines}`
     }).join('<div class="gap"></div>')
+    const blocks = dateBlock + '<div class="gap"></div>' + cmdBlocks
     const titleColor = variant === 'before' ? '#f87171' : '#4ade80'
     const html = `<!doctype html><meta charset="utf-8"><style>
       body{margin:0;padding:18px;background:${variant === 'before' ? '#1b0f10' : '#0d1a12'};font-family:ui-monospace,Menlo,Consolas,monospace}
@@ -475,7 +467,6 @@ async function renderTerminalScreenshot(segments, summary, variant, highlight = 
       <div class="body">
         ${blocks}
         <div class="cmt">${esc(summary)}</div>
-        <div class="cap">${esc(caption)}</div>
       </div>
     </div>`
     await page.setContent(html, { waitUntil: 'load' })
