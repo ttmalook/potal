@@ -494,6 +494,14 @@ async function runCmd(file, args, timeout = 15000) {
     return null
   }
 }
+
+// stdout+stderr 를 합쳐 잡는다 — ncat 처럼 연결 상태를 stderr 에 쓰는 도구용.
+//  비정상 종료(접속 거부 시 ncat exit≠0)여도 stderr 에 실제 메시지가 있으므로 그대로 반환.
+async function runCmdCombined(file, args, timeout = 15000) {
+  const merge = (o) => String((o?.stdout || '') + (o?.stderr || '')).replace(/\r/g, '').trim()
+  try { return merge(await execFileP(file, args, { timeout })) || null }
+  catch (e) { return merge(e) || null }
+}
 async function runShell(cmd, timeout = 15000) {
   try {
     const { stdout } = await execFileP('sh', ['-c', cmd], { timeout })
@@ -996,13 +1004,31 @@ app.post('/collect', async (req, res) => {
       const b = await checkPort(NET_VUL, port)
       const a = await checkPort(NET_REM, port)
       const rows = (state) => [['Target', 'Partner Standard Lab'], ['Port', `tcp/${port}`], ['State', state]]
-      // 실제 nmap(비루트라 -sT connect 스캔). 실패 시 리포트 뷰 폴백.
+      // 공격자 관점 시나리오: 외부에서 그 서비스 포트로 실제 접속을 시도한다(ncat).
+      //  조치 전 = 연결 성공(도달·악용 가능) · 조치 후 = 거부(차단). + nmap 으로 포트 상태 확인.
+      const ncatCmd = (host) => `ncat -v -z -w3 ${host} ${port}`
       const nmapCmd = (host) => `nmap -sT -Pn -p ${port} ${host}`
+      const rawCb = await runCmdCombined('ncat', ['-v', '-z', '-w', '3', NET_VUL, String(port)], 12000)
+      const rawCa = await runCmdCombined('ncat', ['-v', '-z', '-w', '3', NET_REM, String(port)], 12000)
       const rawNb = await runCmd('nmap', ['-sT', '-Pn', '-p', String(port), NET_VUL], 20000)
       const rawNa = await runCmd('nmap', ['-sT', '-Pn', '-p', String(port), NET_REM], 20000)
+      // 접속 시도(ncat) + 포트 상태(nmap) 라인 색상 — 도달/노출=위험(빨강), 거부/차단=안전(초록).
+      const netScn = (l) => {
+        if (/connection refused|refused|closed|filtered|timed out|timeout|no matching/i.test(l)) return 'good'
+        if (/connected to|succeeded|\bopen\b/i.test(l)) return 'bad'
+        if (/^ncat:|^starting nmap|scan report|^PORT|host is up|nmap done/i.test(l)) return 'status'
+        return 'dim'
+      }
       let shotB
       let shotA
-      if (rawNb && rawNa) {
+      if (rawCb && rawCa) {
+        const segB = [{ cmd: ncatCmd(NET_VUL), raw: rawCb }]
+        const segA = [{ cmd: ncatCmd(NET_REM), raw: rawCa }]
+        if (rawNb) segB.push({ cmd: nmapCmd(NET_VUL), raw: rawNb })
+        if (rawNa) segA.push({ cmd: nmapCmd(NET_REM), raw: rawNa })
+        shotB = await renderTerminalScreenshot(segB, `⚠ 공격자 접속 성공 — tcp/${port} 서비스에 외부에서 도달 가능(악용 위험)`, 'before', netScn)
+        shotA = await renderTerminalScreenshot(segA, `✓ 접속 거부 — tcp/${port} 외부 도달 차단(공격 실패)`, 'after', netScn)
+      } else if (rawNb && rawNa) {
         shotB = await renderTerminalScreenshot([{ cmd: nmapCmd(NET_VUL), raw: rawNb }], `⚠ tcp/${port} ${b} — 서비스 외부 노출`, 'before', nmapLineClass)
         shotA = await renderTerminalScreenshot([{ cmd: nmapCmd(NET_REM), raw: rawNa }], `✓ tcp/${port} ${a} — 노출 없음`, 'after', nmapLineClass)
       } else {
@@ -1011,13 +1037,13 @@ app.post('/collect', async (req, res) => {
       }
       return res.json({
         ok: true,
-        visual_before: { label: `조치 전 · nmap (tcp/${port} ${b})`, screenshot: shotB, variant: 'before' },
-        visual_after: { label: `조치 후 · nmap (tcp/${port} ${a})`, screenshot: shotA, variant: 'after' },
+        visual_before: { label: `조치 전 · 접속 시도 → 연결됨 (tcp/${port} 노출·도달 가능)`, screenshot: shotB, variant: 'before' },
+        visual_after: { label: `조치 후 · 접속 시도 → 거부됨 (tcp/${port} 차단)`, screenshot: shotA, variant: 'after' },
         technical_diff: [
-          { key: `tcp/${port}`, before: b, after: a, changed: b !== a },
-          { key: 'Note', before: b === 'open' ? '노출됨' : b, after: a === 'closed' ? '차단됨' : a, changed: b !== a }
+          { key: `공격자 접속 시도 (ncat tcp/${port})`, before: '연결됨(도달 가능)', after: '거부됨(차단)', changed: true },
+          { key: `포트 상태 (nmap tcp/${port})`, before: b, after: a, changed: b !== a }
         ],
-        raw_summary: { tool: 'node-net + report-render', note: port !== 1723 ? '이 랩 타깃은 tcp/1723만 노출 — 다른 포트는 미노출' : undefined }
+        raw_summary: { tool: 'ncat(접속 시도) + nmap(포트 상태)', note: port !== 1723 ? '이 랩 타깃은 tcp/1723만 노출 — 다른 포트는 미노출' : undefined }
       })
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message })
