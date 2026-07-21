@@ -35,7 +35,8 @@ import {
   applyFilters,
   BulkActionsBar,
   exportRowsToCsv,
-  ScoreBadge
+  ScoreBadge,
+  Toast
 } from '../components/common.jsx'
 import { getScore, useScore } from '../lib/sscScore.js'
 import { getIssueTypeSummary, primeIssueTypeSummary } from '../lib/sscFindings.js'
@@ -2026,6 +2027,8 @@ export function DeliveryReportViewer({ custName, app }) {
   const [typeSummary, setTypeSummary] = useState([])
   const [drillIssue, setDrillIssue] = useState(null)
   const [step, setStep] = useState(0) // 0=리포트 검토, 1=전달
+  // 새창 뷰어는 메인 앱 토스트 호스트 밖이라 app.showToast 가 화면에 안 뜸 → 자체 토스트 렌더.
+  const [toast, setToast] = useState(null)
   const labPacks = (app?.evidencePacks || []).filter((p) => p.source === 'lab' && p.excluded !== true
     && (hostOfDom(p.sscLookupDomain || p.domain) === hostOfDom(scoreDomain) || p.customer === custName))
   const today = new Date().toISOString().slice(0, 10)
@@ -2037,8 +2040,10 @@ export function DeliveryReportViewer({ custName, app }) {
   const copyShareLink = (pack) => {
     let t = pack.shareToken
     if (!t) { const f = newShareFields(); t = f.shareToken; app?.updateEvidencePack?.(pack.id, f) }
-    navigator.clipboard?.writeText(`${location.origin}${location.pathname}#share=${t}`)
-    app?.showToast?.('고객 게시 링크 복사됨 — 30일간 유효, 로그인 없이 이 팩만 열림')
+    const url = `${location.origin}${location.pathname}#share=${t}`
+    const done = () => setToast({ tone: 'success', text: '클립보드에 복사됨 — 고객 게시 링크(30일 유효, 로그인 없이 이 팩만 열람)' })
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(() => setToast({ tone: 'warning', text: `복사 실패 — 링크: ${url}` }))
+    else done()
   }
 
   useEffect(() => {
@@ -2200,6 +2205,7 @@ export function DeliveryReportViewer({ custName, app }) {
           {drillLabPack ? <LabEvidenceStepsBody pack={drillLabPack} /> : <GuideSteps detail={drillMeta} />}
         </Drawer>
       )}
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </div>
   )
 }
