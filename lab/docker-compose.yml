@@ -43,6 +43,12 @@ services:
     build: ./targets/http-generic   # 레시피 주도 제네릭 HTTP 응답기(AI Lab Builder Phase 1)
     networks: [labnet]
 
+  # HSTS 조치 타깃 — HTTPS(자체서명)+HTTP→HTTPS 리다이렉트+HSTS. (조치 전은 http-vulnerable 재사용)
+  lab-hsts-remediated:
+    restart: unless-stopped
+    build: ./targets/hsts-remediated
+    networks: [labnet]
+
   # 수동 검증 하니스용 가변(mutable) HTTP 타깃 — 스크립트가 런타임에 헤더를 넣고/빼며 실제 조치 재현.
   lab-http-drill:
     restart: unless-stopped
@@ -150,6 +156,7 @@ services:
       HTTP_VULNERABLE_URL: http://lab-http-vulnerable
       HTTP_REMEDIATED_URL: http://lab-http-remediated
       HTTP_GENERIC_URL: http://lab-http-generic
+      HSTS_REMEDIATED_HOST: lab-hsts-remediated
       TLS_VULNERABLE_HOST: lab-tls-vulnerable
       TLS_REMEDIATED_HOST: lab-tls-remediated
       TLS_REVOKED_HOST: lab-tls-revoked

@@ -71,6 +71,7 @@ const DNS_REM = process.env.DNS_REMEDIATED_HOST || 'lab-dns-remediated'
 const DNS_ZONE = process.env.DNS_ZONE || 'example.lab'
 const NET_VUL = process.env.NET_VULNERABLE_HOST || 'lab-net-vulnerable'
 const NET_REM = process.env.NET_REMEDIATED_HOST || 'lab-net-remediated'
+const HSTS_REM = process.env.HSTS_REMEDIATED_HOST || 'lab-hsts-remediated'
 const SSH_VUL = process.env.SSH_VULNERABLE_HOST || 'lab-ssh-vulnerable'
 const SSH_REM = process.env.SSH_REMEDIATED_HOST || 'lab-ssh-remediated'
 const ART = '/artifacts'
@@ -402,6 +403,15 @@ async function curlHead(url) {
     return String(stdout).replace(/\r/g, '').trim()
   } catch (e) {
     return null
+  }
+}
+// 자체서명 HTTPS 용 — 인증서 검증 무시(-k). HSTS 조치 타깃(자체서명) 헤더 확인에 사용.
+async function curlHeadK(url) {
+  try {
+    const { stdout } = await execFileP('curl', ['-sSIk', '--max-time', '10', url], { timeout: 12000 })
+    return String(stdout).replace(/\r/g, '').trim()
+  } catch (e) {
+    return e && e.stdout ? String(e.stdout).replace(/\r/g, '').trim() : null
   }
 }
 
@@ -1222,6 +1232,43 @@ app.post('/collect', async (req, res) => {
           { key: '브라우저 콘솔(차단 증거)', before: before.cspErrors?.length ? before.cspErrors[0] : '(위반 없음 — 스크립트 실행됨)', after: after.cspErrors?.length ? after.cspErrors[0] : '(위반 없음)', changed: (before.cspErrors?.length || 0) !== (after.cspErrors?.length || 0) }
         ],
         raw_summary: { tool: 'playwright', focus: 'CSP inline-script execution (visible defacement)' }
+      })
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message })
+    }
+  }
+
+  // ── HSTS 다운그레이드 시나리오 — 조치 전: 평문 HTTP 그대로 / 조치 후: HTTP→HTTPS 강제 + HSTS ──
+  //  공격자가 HTTP 로 접속(또는 MITM 다운그레이드) 시: 취약=평문 통신 / 조치=HTTPS 강제 + HSTS 로 차단.
+  if (/hsts|strict_transport/i.test(String(issueType))) {
+    try {
+      const rawB = await curlHead(`${VUL}/`)                 // 조치 전: 평문 http (HSTS·리다이렉트 없음)
+      const rawH = await curlHead(`http://${HSTS_REM}/`)     // 조치 후 ①: http → 301 https
+      const rawS = await curlHeadK(`https://${HSTS_REM}/`)   // 조치 후 ②: https → HSTS 헤더
+      if (!rawB || !rawH || !rawS) return res.status(500).json({ ok: false, error: 'HSTS 타깃 curl 실패(lab-hsts-remediated 기동 확인)' })
+      const hstsHl = (l) => {
+        if (/^HTTP\/\S+\s+30[178]|^location:\s*https:|strict-transport-security/i.test(l)) return 'good'
+        if (/^HTTP\//.test(l)) return 'status'
+        return 'dim'
+      }
+      const has301 = /^HTTP\/\S+\s+30[178]/im.test(rawH) || /^location:\s*https:/im.test(rawH)
+      const hasHsts = /strict-transport-security/i.test(rawS)
+      const shotB = await renderTerminalScreenshot(
+        [{ cmd: `curl -sSI ${VUL}/`, raw: rawB, note: '공격자 관점 — HTTP 로 접속 시도' }],
+        '⚠ 평문 HTTP 응답 그대로 — HTTPS 리다이렉트·HSTS 없음 → 다운그레이드/도청 가능', 'before', hstsHl)
+      const shotA = await renderTerminalScreenshot(
+        [{ cmd: `curl -sSI http://${HSTS_REM}/`, raw: rawH, note: 'HTTP 접속 시도 → 리다이렉트 확인' },
+          { cmd: `curl -sSIk https://${HSTS_REM}/`, raw: rawS, note: 'HTTPS 응답의 HSTS 헤더 확인' }],
+        '✓ HTTP→HTTPS 강제 리다이렉트 + HSTS 적용 → 이후 브라우저가 HTTPS 고정(다운그레이드 차단)', 'after', hstsHl)
+      return res.json({
+        ok: true,
+        visual_before: { label: '조치 전 · HTTP 접속 → 평문 응답(강제 없음)', screenshot: shotB, variant: 'before' },
+        visual_after: { label: '조치 후 · HTTP 접속 → HTTPS 강제 + HSTS', screenshot: shotA, variant: 'after' },
+        technical_diff: [
+          { key: 'HTTP→HTTPS 리다이렉트', before: '없음 (평문 200)', after: has301 ? '301 → https' : '미확인', changed: true },
+          { key: 'Strict-Transport-Security', before: 'Not Present', after: hasHsts ? (parseHeaders(rawS)['strict-transport-security'] || '적용') : 'Not Present', changed: hasHsts }
+        ],
+        raw_summary: { tool: 'curl -sSI(http/https) — HSTS 다운그레이드 시나리오' }
       })
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message })
