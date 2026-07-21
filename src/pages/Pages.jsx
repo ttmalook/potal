@@ -1608,9 +1608,10 @@ export function EvidencePacks({ app }) {
             {app.can?.('evidence') && <button className="btn btn-primary" onClick={() => { let t = selected.shareToken; if (!t) { const f = newShareFields(); t = f.shareToken; setSelected((s) => ({ ...s, ...f })); app.updateEvidencePack?.(selected.id, f) } navigator.clipboard?.writeText(`${location.origin}${location.pathname}#share=${t}`); app.showToast?.('고객 게시 링크 복사됨 — 30일간 유효, 로그인 없이 이 팩만 열림') }}>고객 링크 복사</button>}
           </>}
         >
-          {selected.source === 'lab' ? <LabEvidencePackBody pack={selected} />
-            : selected.source === 'risk' ? <RiskEvidencePackBody pack={selected} app={app} />
-            : <EvidencePackBody pack={selected} app={app} />}
+          {/* 검증랩·조치가이드·고객전달과 동일한 단계형(개요→조치방법→검증→마무리)으로 통일 */}
+          {selected.source === 'lab'
+            ? <LabEvidenceStepsBody pack={selected} />
+            : <GuideSteps detail={guideRowMeta(selected.issueType)} />}
         </Drawer>
       )}
     </div>
@@ -1641,9 +1642,9 @@ export function SharedPackView({ token }) {
       <div className="shared-body">
         <h1 className="shared-title">{pack.title}</h1>
         <p className="shared-sub">{pack.customer} · {pack.domain} · 발행일 {pack.created}</p>
-        {pack.source === 'lab' ? <LabEvidencePackBody pack={pack} />
-          : pack.source === 'risk' ? <RiskEvidencePackBody pack={pack} />
-            : <EvidencePackBody pack={pack} />}
+        {pack.source === 'lab'
+          ? <LabEvidenceStepsBody pack={pack} />
+          : <GuideSteps detail={guideRowMeta(pack.issueType)} />}
       </div>
     </div>
   )
