@@ -726,6 +726,19 @@ function trimSshEnum(raw) {
   return String(raw || '').split('\n').filter((l) => /22\/tcp|ssh2-enum|_algorithms:|^\|\s+[A-Za-z0-9]/.test(l)).join('\n')
 }
 
+// 공격 시나리오: 공격자가 약한 cipher(aes128-cbc)로 SSH 접속을 시도한다.
+//  취약 서버 → 협상 성공(인증 단계 'Permission denied' 도달 = 암호화 채널 수립됨)
+//  조치 서버 → 거부('no matching cipher found', 서버는 강한 암호만 제공).
+async function sshWeakConnect(host) {
+  return await runShell(`timeout 10 ssh -v -c aes128-cbc -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=6 -o PreferredAuthentications=publickey root@${host} true 2>&1`)
+}
+// ssh -v 원문에서 핵심 라인만 발췌(협상된 cipher / 거부 / 인증 도달).
+function trimSsh(raw) {
+  const lines = String(raw || '').split('\n')
+  const keep = lines.filter((l) => /kex:.*cipher:|no matching|unable to negotiate|Their offer:|Permission denied|Server host key|Connection established/i.test(l))
+  return (keep.length ? keep : lines.slice(-8)).slice(0, 12).join('\n')
+}
+
 // 세션 쿠키 속성 추출 (SID 우선, 없으면 첫 쿠키)
 function cookieAttrs(cookies) {
   const list = Array.isArray(cookies) ? cookies : []
@@ -978,16 +991,43 @@ app.post('/collect', async (req, res) => {
       const isCipher = it.includes('cipher')
       const weakListB = isCipher ? wB.enc : [...wB.kex, ...wB.mac]
       const weakListA = isCipher ? wA.enc : [...wA.kex, ...wA.mac]
-      const shotB = await renderTerminalScreenshot([{ cmd: cmd(SSH_VUL), raw: trimSshEnum(rawB) }], `⚠ 약한 ${isCipher ? 'cipher' : 'KEX/MAC'} 제공: ${weakListB.join(', ') || '없음'}`, 'before', sshLineClass)
-      const shotA = await renderTerminalScreenshot([{ cmd: cmd(SSH_REM), raw: trimSshEnum(rawA) }], `✓ 강한 알고리즘만 (약한 ${isCipher ? 'cipher' : 'KEX/MAC'} 없음)`, 'after', sshLineClass)
+      // 공격 시나리오: 약한 cipher(aes128-cbc)로 SSH 접속 시도 — 취약=협상 성공, 조치=거부.
+      const sCmd = (host) => `ssh -v -c aes128-cbc -o BatchMode=yes root@${host} true`
+      const sB = await sshWeakConnect(SSH_VUL)
+      const sA = await sshWeakConnect(SSH_REM)
+      const hasScenario = !!(sB && sA)
+      const sshAccepted = (raw) => !/no matching|unable to negotiate/i.test(String(raw || ''))
+      // ssh(접속 시도) + nmap(enum) 공용 하이라이터 — 거부=초록, 약한 cipher 협상=빨강.
+      const hl = (l) => {
+        if (/no matching|unable to negotiate/i.test(l)) return 'good'
+        if (/cipher:\s*\S*-cbc|cipher:\s*3des/i.test(l)) return 'bad'
+        if (/kex:|Their offer:|Permission denied|Server host key|Connection established/i.test(l)) return 'status'
+        return sshLineClass(l)
+      }
+      const segB = hasScenario ? [{ cmd: sCmd(SSH_VUL), raw: trimSsh(sB) }] : []
+      const segA = hasScenario ? [{ cmd: sCmd(SSH_REM), raw: trimSsh(sA) }] : []
+      segB.push({ cmd: cmd(SSH_VUL), raw: trimSshEnum(rawB) })
+      segA.push({ cmd: cmd(SSH_REM), raw: trimSshEnum(rawA) })
+      const sumB = hasScenario
+        ? `⚠ 약한 cipher(aes128-cbc) 협상 성공 — 약한 암호로 암호화 채널 수립(인증 단계 도달). 도청 위험.`
+        : `⚠ 약한 ${isCipher ? 'cipher' : 'KEX/MAC'} 제공: ${weakListB.join(', ') || '없음'}`
+      const sumA = hasScenario
+        ? `✓ 약한 cipher 거부 — no matching cipher(서버가 강한 암호만 제공).`
+        : `✓ 강한 알고리즘만 (약한 ${isCipher ? 'cipher' : 'KEX/MAC'} 없음)`
+      const shotB = await renderTerminalScreenshot(segB, sumB, 'before', hasScenario ? hl : sshLineClass)
+      const shotA = await renderTerminalScreenshot(segA, sumA, 'after', hasScenario ? hl : sshLineClass)
+      const tdScenario = hasScenario
+        ? [{ key: '공격자 약한 cipher(aes128-cbc) 접속', before: sshAccepted(sB) ? '협상 성공 (채널 수립)' : '거부', after: sshAccepted(sA) ? '협상 성공' : '거부됨 (no matching cipher)', changed: sshAccepted(sB) !== sshAccepted(sA) }]
+        : []
       return res.json({
         ok: true,
-        visual_before: { label: `조치 전 · nmap ssh2-enum (약한 ${isCipher ? 'cipher' : 'KEX/MAC'})`, screenshot: shotB, variant: 'before' },
-        visual_after: { label: '조치 후 · nmap ssh2-enum (강한 알고리즘)', screenshot: shotA, variant: 'after' },
+        visual_before: { label: hasScenario ? '조치 전 · 약한 cipher 접속 시도 → 협상 성공' : `조치 전 · nmap ssh2-enum (약한 ${isCipher ? 'cipher' : 'KEX/MAC'})`, screenshot: shotB, variant: 'before' },
+        visual_after: { label: hasScenario ? '조치 후 · 약한 cipher 접속 시도 → 거부' : '조치 후 · nmap ssh2-enum (강한 알고리즘)', screenshot: shotA, variant: 'after' },
         technical_diff: [
+          ...tdScenario,
           { key: `약한 ${isCipher ? 'cipher' : 'KEX/MAC'} 제공`, before: weakListB.length ? '예 (' + weakListB.join(', ') + ')' : '아니오', after: weakListA.length ? '예' : '아니오', changed: weakListB.length !== weakListA.length }
         ],
-        raw_summary: { tool: 'nmap ssh2-enum-algos' }
+        raw_summary: { tool: hasScenario ? 'ssh -c aes128-cbc(접속 시도) + nmap ssh2-enum' : 'nmap ssh2-enum-algos' }
       })
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message })
