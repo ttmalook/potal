@@ -152,6 +152,33 @@ async function capture(url) {
 
 // CSP/XSS 데모 캡처 — 인라인 스크립트가 실행됐는지(window.__xssRan) + 응답 헤더 + 스크린샷.
 //  취약(CSP 없음) → 실행되어 페이지 변조, 조치(CSP default-src 'self') → 브라우저가 차단.
+// CSP 증적용 — 방명록 아래에 붙일 '실제 명령 실행 결과' 터미널 블록(원문 그대로).
+//  date -u 와 curl -sSI 의 실제 stdout 만 담는다(요약·캡션 등 가공 주입 없음).
+//  → 시각(대상 date 헤더 + collector date)과 헤더가 재실행 가능한 하드 증거로 남는다.
+function rawCmdTerminalHtml({ url, dateOut, curlOut }) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const colorOf = (l) => {
+    if (/^HTTP\//.test(l)) return '#93c5fd'
+    const m = l.match(/^([A-Za-z0-9-]+):\s*(.*)$/)
+    if (!m) return '#cbd5e1'
+    const k = m[1].toLowerCase()
+    if (k === 'date') return '#fde047'
+    if (k === 'content-security-policy') return headerVerdict(k, m[2]) === 'good' ? '#86efac' : '#fca5a5'
+    return '#64748b'
+  }
+  const curlLines = String(curlOut || '(curl 응답 없음)').split('\n')
+    .map((l) => `<div style="color:${colorOf(l)}">${esc(l) || '&nbsp;'}</div>`).join('')
+  return `<div style="max-width:640px;margin:14px auto 24px;background:#0b0f17;border:1px solid #1f2937;border-radius:12px;overflow:hidden;font-family:ui-monospace,Menlo,Consolas,monospace">
+    <div style="padding:8px 14px;background:#111827;border-bottom:1px solid #1f2937;color:#94a3b8;font-family:system-ui,sans-serif;font-size:11px">실제 명령 실행 결과 — 원문 그대로 (무가공)</div>
+    <div style="padding:12px 16px;font-size:13px;line-height:1.85;color:#cbd5e1">
+      <div style="color:#e2e8f0"><span style="color:#4ade80">$</span> date -u</div>
+      <div style="color:#fde047">${esc(dateOut || '(date 출력 없음)')}</div>
+      <div style="color:#e2e8f0"><span style="color:#4ade80">$</span> curl -sSI ${esc(url)}</div>
+      ${curlLines}
+    </div>
+  </div>`
+}
+
 async function captureXss(url) {
   const browser = await chromium.launch()
   try {
@@ -178,12 +205,12 @@ async function captureXss(url) {
         wrap.className = 'devconsole'
         const bar = document.createElement('div')
         bar.className = 'dc-bar'
-        bar.textContent = '🧪 브라우저 콘솔 (개발자도구 · Console) — CSP가 실행을 거부한 실제 로그'
+        bar.textContent = '브라우저 콘솔 (개발자도구 · Console) — CSP가 실행을 거부한 실제 로그'
         wrap.appendChild(bar)
         errs.forEach((t) => {
           const ln = document.createElement('div')
           ln.className = 'dc-line'
-          ln.textContent = '⛔ ' + t
+          ln.textContent = t
           wrap.appendChild(ln)
         })
         const host = document.querySelector('.page') || document.body
@@ -192,24 +219,21 @@ async function captureXss(url) {
       await page.waitForTimeout(80)
     }
     await page.waitForTimeout(120)
-    // 촬영 시각 캡션 — 대상 서버의 응답 Date 헤더(타깃 자신이 찍은 시각)를 근거로 표기.
-    //  curl/nmap/dig 증적의 촬영 캡션과 동일한 근거·형식. Date 없으면 현재 시각 폴백.
-    const dateHdr = resp ? (resp.headers()['date'] || '') : ''
-    const capText = kstCaptionFromRaw(dateHdr ? 'date: ' + dateHdr : '')
-    await page.evaluate((t) => {
-      const host = document.querySelector('.page') || document.body
-      const cap = document.createElement('div')
-      cap.style.cssText = 'margin-top:12px;padding-top:10px;border-top:1px solid #e5e7eb;color:#b45309;font-family:system-ui,sans-serif;font-size:12.5px;font-weight:700'
-      cap.textContent = t
-      host.appendChild(cap)
-    }, capText)
+    // 방명록(시연) 아래에 '실제 명령 실행 결과'(date -u + curl -sSI 원문)를 붙인다.
+    //  방명록=영향 전달, 명령 원문=재실행 가능한 하드 증거(시각·헤더). 둘을 한 장에 위/아래로 분리.
+    let dateOut = ''
+    try { dateOut = String((await execFileP('date', ['-u'], { timeout: 5000 })).stdout).trim() } catch { /* noop */ }
+    const curlOut = await curlHead(url)
+    await page.evaluate((html) => {
+      const holder = document.createElement('div')
+      holder.innerHTML = html
+      if (holder.firstElementChild) document.body.appendChild(holder.firstElementChild)
+    }, rawCmdTerminalHtml({ url, dateOut, curlOut }))
     await page.waitForTimeout(30)
     const file = `${ART}/${Date.now()}-${Math.random().toString(36).slice(2)}.png`
-    // 카드(.page)만 타이트하게 크롭 → 증표가 썸네일을 꽉 채워 전/후 대비가 선명.
-    const card = await page.$('.page')
-    if (card) await card.screenshot({ path: file })
-    else await page.screenshot({ path: file, fullPage: true })
-    return { headers: resp ? resp.headers() : {}, xssRan: !!xssRan, defaced: !!xssRan, screenshot: file, status: resp ? resp.status() : 0, cspErrors }
+    // 방명록 + 명령 블록을 함께 담기 위해 페이지 전체를 캡처.
+    await page.screenshot({ path: file, fullPage: true })
+    return { headers: resp ? resp.headers() : {}, xssRan: !!xssRan, defaced: !!xssRan, screenshot: file, status: resp ? resp.status() : 0, cspErrors, dateOut, curlOut }
   } finally {
     await browser.close()
   }
