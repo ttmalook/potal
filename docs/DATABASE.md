@@ -34,84 +34,140 @@ Postgres 연결 실패 시 각 store는 `backend/data/<name>.json` 파일로 폴
 
 ```mermaid
 erDiagram
-  CUSTOMER ||--o{ DOMAIN : "보유(name)"
-  DOMAIN ||--o{ RISK_FINDING : "관측(host)"
-  ISSUE_TYPE_CATALOG ||--o{ RISK_FINDING : "분류(issue_type)"
-  DOMAIN ||--o{ LAB_RUN : "대상"
+  CUSTOMER ||--o{ DOMAIN : "name"
+  CUSTOMER ||--o{ EVIDENCE_PACK : "전달"
   CUSTOMER ||--o{ LAB_RUN : "귀속"
-  LAB_RUN ||--o{ LAB_ARTIFACT : "생성"
-  LAB_RUN ||--o| EVIDENCE_PACK : "근거(labRunId)"
-  CUSTOMER ||--o{ EVIDENCE_PACK : "전달 대상"
-  ISSUE_TYPE_CATALOG ||--o{ EVIDENCE_PACK : "유형(issueType)"
-  USER ||--o{ REFRESH_TOKEN : "세션(userId)"
+  DOMAIN ||--o{ RISK_FINDING : "host"
+  DOMAIN ||--o{ LAB_RUN : "대상"
+  ISSUE_TYPE_CATALOG ||--o{ RISK_FINDING : "type"
+  ISSUE_TYPE_CATALOG ||--o{ EVIDENCE_PACK : "type"
+  LAB_RUN ||--o{ LAB_ARTIFACT : "run_id"
+  LAB_RUN ||--o| EVIDENCE_PACK : "labRunId"
+  USER ||--o{ REFRESH_TOKEN : "userId"
 
   CUSTOMER {
     string id PK "CUST-xxx"
-    string name "자연 키(도메인·팩이 참조)"
+    string name
     string industry
-    int    open_risks
+    int    domains
+    int    openRisks
+    date   lastCheck
+    string engineer
     string status
+    string contact
+    string note
   }
   DOMAIN {
     string id PK "DOM-xxx"
-    string customer FK "→ CUSTOMER.name"
-    string primary "호스트(정규화)"
+    string customer FK
+    string primary "host(정규화)"
+    string baseUrl
     json   allow
     json   deny
+    bool   screenshot
+    bool   har
+    string consent
     string status
   }
   RISK_FINDING {
     string finding_id PK "ssc:{issue_id}"
-    string domain FK "→ DOMAIN.primary"
-    string issue_type FK "→ ISSUE_TYPE_CATALOG.key"
+    string domain FK
+    string issue_type FK
+    string issue_title
+    string factor
     string severity
     string status
+    datetime first_seen
+    datetime last_seen
+    string asset_type
+    string asset_value
+    string workflow_state
   }
   ISSUE_TYPE_CATALOG {
     string key PK
     string factor
     string severity
     string title
+    datetime synced_at
   }
   LAB_RUN {
     string id PK "RUN-xxx"
-    string issue_type
-    string customer FK
-    string domain FK
+    string findingRef
+    string issueType
+    string templateId "http_header|tls|dns|network|ssh"
+    string category
+    string collector "simulated|docker"
     string status "succeeded|failed|unsupported"
-    string evidence_pack_id
+    string domain
+    string customer
+    string diffSummary
+    json   evidence
+    datetime startedAt
+    datetime endedAt
+    string evidencePackId
   }
   LAB_ARTIFACT {
     string id PK
-    string run_id FK "→ LAB_RUN.id (유일한 강제 FK, 관계형 스키마)"
-    string kind
+    string run_id FK "ON DELETE CASCADE"
+    string kind "visual_before|visual_after|scan_*"
+    string path
     string sha256
+    datetime captured_at
   }
   EVIDENCE_PACK {
-    string id PK "EP-LAB-… | EP-GUIDE-…"
+    string id PK "EP-LAB-|EP-GUIDE-"
+    string title
     string customer FK
-    string issueType
+    string domain
+    string sscLookupDomain
+    string issueType FK
     string source "lab|guide|manual"
-    string labRunId FK "→ LAB_RUN.id"
+    string labRunId FK
+    int    riskCount
+    date   created
     bool   excluded
-    string shareToken "고객 게시 링크"
+    string publish
+    string shareToken
+    datetime shareExpiresAt
+    string customerViewed
   }
   USER {
     string id PK "usr-xxx"
-    string email "로그인 ID(소문자), 문서 키"
+    string email "로그인ID(소문자)"
+    string name
     string role "admin|partner|viewer"
+    string phone
+    string department
     string passwordHash "scrypt salt:hash"
   }
   REFRESH_TOKEN {
     string tokenHash PK "SHA-256(token)"
-    string userId FK "→ USER.id"
-    string family "회전 그룹"
+    string userId FK
+    string family
     bool   revoked
-    string expiresAt
+    datetime expiresAt
+    datetime createdAt
+  }
+  AUDIT_LOG {
+    string id PK "AUD-ts-hex"
+    datetime ts
+    string kind "user|security|system"
+    string actor
+    string role
+    string action
+    string target
+    string result
+    string ip
+  }
+  APP_SETTINGS {
+    string id PK "ssc_api_token|claude_api_key"
+    string data "AES-256-GCM iv:tag:cipher"
+    datetime updated_at
   }
 ```
 
-독립 엔티티(관계 없음): **AUDIT_LOG**(감사 이벤트, append-only), **APP_SETTINGS**(암호화 설정), **GUIDE_INTERPRETATION**(Claude 해석 캐시), **LAB_RECIPE**(AI 레시피 레지스트리).
+> 관계는 자연 키(이름·호스트·id 문자열)로 **논리 연결**되며 DB 제약으로 강제되지 않는다. 유일한 강제 FK는 관계형 스키마의 `LAB_ARTIFACT.run_id → LAB_RUN.id`(CASCADE).
+> 위에 없는 **GUIDE_INTERPRETATION**(Claude 해석 캐시)·**LAB_RECIPE**(AI 레시피 레지스트리)는 관계 없는 독립 JSONB 테이블 — 상세는 §3.9·§3.10.
 
 ---
 
