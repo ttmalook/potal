@@ -41,6 +41,49 @@ OS: **Ubuntu Server 22.04/24.04 LTS** 권장. 각 VM에 `docker` + `docker compo
 
 ---
 
+## 환경변수 (.env) 통합 표
+
+각 VM의 `deploy/` 에서 예시를 복사해 채웁니다 — VM-APP: [`.env.app.example`](.env.app.example), VM-DB: [`.env.db.example`](.env.db.example). (로컬 단일 실행용은 [`backend/.env.example`](../backend/.env.example))
+
+### VM-APP (`deploy/.env`)
+
+| 변수 | 필수 | 기본값 | 설명 |
+|---|:--:|---|---|
+| `PGHOST` | ✅ | — | VM-DB IP |
+| `PGPORT` |  | `5432` | DB 포트 |
+| `PGDATABASE` |  | `ssc_portal` | DB 이름(VM-DB와 동일) |
+| `PGUSER` |  | `ssc` | DB 사용자(VM-DB와 동일) |
+| `PGPASSWORD` | ✅ | — | **VM-DB와 동일 값** |
+| `PGSSL` |  | `false` | DB 전송 TLS. 1차 배포 false(방화벽 격리), 이후 인증서 도입 후 true |
+| `PGSSL_REJECT_UNAUTHORIZED` |  | `false` | 자체서명 인증서 허용 여부 |
+| `LAB_COLLECTOR` |  | `docker` | 수집기 모드 |
+| `LAB_COLLECTOR_URL` | ▲ | — | VM-LAB 수집기 `http://<VM-LAB>:8899` (검증랩 사용 시 필수) |
+| `AUTH_ACCESS_SECRET` | ✅ | — | JWT 서명 + 설정 암호화 KEK 근원. **기본값이면 부팅 거부**. `openssl rand -base64 48` |
+| `SEED_ADMIN_EMAIL` |  | `admin@ssc.local` | 초기 관리자 이메일 |
+| `SEED_ADMIN_PASSWORD` | ✅ | — | 초기 관리자 비밀번호. **기본값이면 부팅 거부**. `openssl rand -base64 24` |
+| `SERVER_NAME` | ✅ | — | nginx server_name(VM-APP IP/호스트명) |
+| `CORS_ORIGIN` | ✅ | — | 허용 오리진 `https://<VM-APP>` |
+| `ENABLE_HSTS` |  | `false` | 자체서명 구간은 false, 실인증서 전환 후 true |
+| `HSTS_MAX_AGE` |  | `300` | HSTS max-age(초) — 점진 확대 |
+| `SSC_API_BASE_URL` |  | `https://api.securityscorecard.io` | SSC API 기준 URL |
+| `SSC_API_TOKEN` |  | (빈값) | SSC 토큰. **관리자 화면 설정 권장**(AES-GCM 암호화 저장). env는 폴백 |
+| `OLLAMA_MODEL` |  | `exaone3.5:2.4b` | 로컬 LLM 모델(가이드 해석용, 선택) |
+| `OLLAMA_TIMEOUT_MS` |  | `90000` | LLM 타임아웃(ms) |
+
+▲ = 해당 기능(검증랩) 사용 시 필수.
+
+### VM-DB (`deploy/.env`)
+
+| 변수 | 필수 | 기본값 | 설명 |
+|---|:--:|---|---|
+| `PGDATABASE` |  | `ssc_portal` | DB 이름 |
+| `PGUSER` |  | `ssc` | DB 사용자 |
+| `PGPASSWORD` | ✅ | — | 강한 값으로 교체. **VM-APP와 동일**. `openssl rand -base64 24` |
+
+> **시크릿은 커밋 금지.** `.env`는 `.gitignore` 대상이며, 예시(`*.example`)에는 placeholder만 둡니다. SSC/Claude 키는 가능하면 env 대신 관리자 화면에서 설정(암호화 저장).
+
+---
+
 ## 배포 순서
 
 각 단계 완료 후 **ESXi 스냅샷**을 찍어두면 실패 시 즉시 롤백됩니다.
@@ -144,6 +187,27 @@ openssl rand -base64 24    # SEED_ADMIN_PASSWORD
 - [ ] 검증랩 실행 → 조치 전/후 증적 이미지 표시 (VM-LAB 연동 확인)
 
 DB 연결이 실패하면 backend 는 파일 저장소로 폴백하고 **그 사실을 system 감사 로그에 남깁니다** — 조용히 실패하지 않으니 감사 로그를 확인하세요.
+
+---
+
+## 빌드 · 배포 방식 (CI/CD)
+
+**현재: 수동 배포** — 자동 CI/CD 파이프라인은 두지 않습니다.
+
+```bash
+# 코드 갱신 후 재배포(해당 VM의 deploy/ 또는 lab/ 에서)
+git pull
+docker compose -f docker-compose.app.yml --env-file .env up -d --build web   # 프론트만 재빌드
+docker compose -f docker-compose.app.yml --env-file .env up -d --build        # 앱 전체 재빌드
+```
+
+- **빌드는 컨테이너 내부에서** 수행됩니다(`--build`). 별도 빌드 서버·아티팩트 저장소가 필요 없습니다.
+- **롤백**: 변경 작업 전 ESXi 스냅샷을 찍고, 문제 시 스냅샷 복귀(2~5분). 코드 단위 롤백은 `git checkout <이전 커밋> && ... up -d --build`.
+- 배포 후에는 **[RUNBOOK.md](RUNBOOK.md)의 헬스체크·검증**을 수행하세요.
+
+**왜 CI/CD가 없나**: 사내 전용·소규모(동시 5명)이고 배포 빈도가 낮습니다. 수동 배포 + ESXi 스냅샷 롤백으로 RTO 10분을 충족하므로, 파이프라인·러너 운영 비용이 실익보다 큽니다.
+
+**향후 옵션(도입 시)**: GitHub Actions로 **검증만 자동화**(lint·`node --check`·프론트 빌드·OpenAPI 스펙 빌드)하고, 실제 배포는 사내망 접근 문제로 **수동 유지**를 권장합니다. 배포까지 자동화하려면 self-hosted 러너를 사내망에 두고 SSH 배포로 확장할 수 있습니다.
 
 ---
 
