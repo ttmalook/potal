@@ -169,6 +169,8 @@ erDiagram
 > 관계는 자연 키(이름·호스트·id 문자열)로 **논리 연결**되며 DB 제약으로 강제되지 않는다. 유일한 강제 FK는 관계형 스키마의 `LAB_ARTIFACT.run_id → LAB_RUN.id`(CASCADE).
 > 위에 없는 **GUIDE_INTERPRETATION**(Claude 해석 캐시)·**LAB_RECIPE**(AI 레시피 레지스트리)는 관계 없는 독립 JSONB 테이블 — 상세는 §3.9·§3.10.
 
+**툴 렌더(선택):** 위 ERD는 GitHub에서 바로 렌더된다. DB 모델링 툴의 폴리시된 이미지를 원하면 [`docs/database.dbml`](database.dbml)을 [dbdiagram.io](https://dbdiagram.io)에 붙여넣으면 동일 모델이 테이블 박스형 다이어그램으로 나온다.
+
 ---
 
 ## 3. 운영 저장소 테이블 명세 (JSONB 문서 스토어)

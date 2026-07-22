@@ -1,0 +1,152 @@
+// =====================================================================
+// SSC Partner Portal — DBML (dbdiagram.io / DBML 호환 툴용)
+//   · 사용법: https://dbdiagram.io 에 붙여넣으면 테이블 박스형 ERD로 렌더됩니다.
+//   · 이 파일은 "운영 논리 모델"(JSONB 문서 스토어의 객체 형태)을 시각화용으로 표현합니다.
+//     실제 운영 저장소는 (id TEXT, data JSONB, updated_at) 제네릭 테이블이라 물리 SQL 타입이
+//     없습니다. 아래 타입은 논리 타입 표기(문서 docs/DATABASE.md 와 동일).
+//   · 관계는 자연 키(이름·호스트·id 문자열)로 논리 연결 — DB 제약으로 강제되지 않습니다.
+//     (유일한 강제 FK는 관계형 스키마 db/schema.sql 의 lab_artifacts.run_id → lab_runs.id)
+//   · 예시/필드는 데모 기준 — 실 고객·시크릿 없음.
+// =====================================================================
+
+Table customers {
+  id         varchar [pk, note: 'CUST-xxx']
+  name       varchar [not null, note: '자연 키(도메인·팩이 참조)']
+  industry   varchar
+  domains    int
+  openRisks  int
+  lastCheck  date
+  engineer   varchar
+  status     varchar
+  contact    varchar
+  "note"     varchar
+}
+
+Table domains {
+  id          varchar [pk, note: 'DOM-xxx']
+  customer    varchar [not null, note: '→ customers.name']
+  "primary"   varchar [not null, note: 'host(스킴/포트/경로 제거 정규화)']
+  baseUrl     varchar
+  allow       json [note: '허용 URL 패턴[]']
+  deny        json [note: '제외 URL 패턴[]']
+  screenshot  boolean
+  har         boolean
+  consent     varchar
+  status      varchar
+}
+
+Table risk_findings {
+  finding_id      varchar [pk, note: 'ssc:{issue_id}']
+  domain          varchar [note: '→ domains."primary"']
+  issue_type      varchar [note: '→ issue_type_catalog."key"']
+  issue_title     varchar
+  factor          varchar
+  severity        varchar
+  status          varchar
+  first_seen      timestamp
+  last_seen       timestamp
+  asset_type      varchar
+  asset_value     varchar
+  workflow_state  varchar
+}
+
+Table issue_type_catalog {
+  "key"      varchar [pk]
+  factor     varchar
+  severity   varchar
+  title      varchar
+  synced_at  timestamp
+}
+
+Table lab_runs {
+  id              varchar [pk, note: 'RUN-xxx (문서 테이블 lab_runs_doc)']
+  findingRef      varchar
+  issueType       varchar
+  templateId      varchar [note: 'http_header|tls|dns|network|ssh']
+  category        varchar
+  collector       varchar [note: 'simulated|docker']
+  status          varchar [note: 'succeeded|failed|unsupported']
+  domain          varchar
+  customer        varchar
+  diffSummary     varchar
+  evidence        json [note: 'visual_before/after · technical_diff']
+  startedAt       timestamp
+  endedAt         timestamp
+  evidencePackId  varchar
+}
+
+Table lab_artifacts {
+  id           varchar [pk]
+  run_id       varchar [not null, note: '→ lab_runs.id (강제 FK, ON DELETE CASCADE)']
+  kind         varchar [note: 'visual_before|visual_after|scan_*']
+  path         varchar
+  sha256       varchar
+  captured_at  timestamp
+}
+
+Table evidence_packs {
+  id               varchar [pk, note: 'EP-LAB-… | EP-GUIDE-…']
+  title            varchar
+  customer         varchar [note: '→ customers.name']
+  domain           varchar
+  sscLookupDomain  varchar
+  issueType        varchar [note: '→ issue_type_catalog."key"']
+  source           varchar [note: 'lab|guide|manual']
+  labRunId         varchar [note: '→ lab_runs.id']
+  riskCount        int
+  created          date
+  excluded         boolean
+  publish          varchar [note: "'발행됨'일 때만 게시 링크 열람"]
+  shareToken       varchar [note: '고객 게시 링크(#share=)']
+  shareExpiresAt   timestamp
+  customerViewed   varchar [note: '열람|미열람']
+}
+
+Table users {
+  id            varchar [pk, note: 'usr-xxx (auth_users)']
+  email         varchar [not null, unique, note: '로그인 ID(소문자), 문서 키']
+  name          varchar
+  role          varchar [note: 'admin|partner|viewer']
+  phone         varchar
+  department    varchar
+  passwordHash  varchar [note: 'scrypt salt:hash — 평문 미저장']
+}
+
+Table refresh_tokens {
+  tokenHash  varchar [pk, note: 'SHA-256(token) — 원문 미저장']
+  userId     varchar [not null, note: '→ users.id']
+  family     varchar [note: '회전 그룹(재사용 감지 시 전체 폐기)']
+  revoked    boolean
+  expiresAt  timestamp
+  createdAt  timestamp
+}
+
+Table audit_log {
+  id      varchar [pk, note: 'AUD-ts-hex']
+  ts      timestamp
+  kind    varchar [note: 'user|security|system']
+  actor   varchar
+  role    varchar
+  action  varchar
+  target  varchar
+  result  varchar
+  ip      varchar [note: '민감값(토큰/비번) 미기록']
+}
+
+Table app_settings {
+  id          varchar [pk, note: 'ssc_api_token | claude_api_key']
+  data        varchar [note: 'AES-256-GCM iv:tag:cipher — 평문 미저장']
+  updated_at  timestamp
+}
+
+// ── 관계 (논리 연결; DB 강제 아님, lab_artifacts.run_id 제외) ──
+Ref: domains.customer > customers.name
+Ref: evidence_packs.customer > customers.name
+Ref: lab_runs.customer > customers.name
+Ref: risk_findings.domain > domains."primary"
+Ref: lab_runs.domain > domains."primary"
+Ref: risk_findings.issue_type > issue_type_catalog."key"
+Ref: evidence_packs.issueType > issue_type_catalog."key"
+Ref: lab_artifacts.run_id > lab_runs.id
+Ref: evidence_packs.labRunId > lab_runs.id
+Ref: refresh_tokens.userId > users.id
