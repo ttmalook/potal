@@ -113,6 +113,29 @@ app.use(['/api/portal', '/api/ssc', '/api/integrations', '/api/lab', '/api/guide
 app.get('/api/admin/openapi.json', requireAdmin, (_req, res) => res.json(openapiSpec))
 
 // 조치 가이드 "해석"(비기술 쉬운말) — 로컬 Ollama 생성 + 캐시. 실패 시 text:null → 프론트가 기술 why로 폴백.
+/**
+ * @openapi
+ * /api/guides/interpret:
+ *   post:
+ *     tags: [guides]
+ *     summary: 조치 가이드 LLM 해석 (캐시 우선)
+ *     description: 이슈 유형·권고 원문을 LLM(로컬 ollama 우선)으로 해석해 실무 조치 방향을 생성한다. 동일 키는 캐시(guide_interpretations)를 재사용하며, force=true 로 재생성.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               key: { type: string, example: hsts_incorrect_v2 }
+ *               name: { type: string, example: 'HTTPS 강제(HSTS) 설정 미흡' }
+ *               why: { type: string, description: 위험 근거 }
+ *               text: { type: string, description: SSC 권고 원문 }
+ *               kind: { type: string, example: guide }
+ *               force: { type: boolean, description: 캐시 무시 재생성, example: false }
+ *     responses:
+ *       200: { description: 해석 결과(실패 시 ok=false + errorCode), content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, text: { type: string, nullable: true } } } } } }
+ */
 app.post('/api/guides/interpret', async (req, res) => {
   const { key, name, why, text, kind, force } = req.body || {}
   try {
@@ -581,7 +604,46 @@ app.get('/api/audit', requireAuth, requireAdmin, async (req, res) => {
   res.json({ ok: true, ...r })
 })
 
+/**
+ * @openapi
+ * /api/portal/customers:
+ *   get:
+ *     tags: [portal]
+ *     summary: 고객사 목록 (역할별 가시성 필터 적용)
+ *     responses:
+ *       200: { description: 고객사 목록, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, customers: { type: array, items: { $ref: '#/components/schemas/Customer' } } } } } } }
+ *   post:
+ *     tags: [portal]
+ *     summary: 고객사 등록 (권한 customers:write)
+ *     requestBody:
+ *       required: true
+ *       content: { application/json: { schema: { $ref: '#/components/schemas/Customer' } } }
+ *     responses:
+ *       200: { description: 등록된 고객사, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, customer: { $ref: '#/components/schemas/Customer' } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 app.get('/api/portal/customers', async (req, res) => res.json({ ok: true, customers: visibleTo(req, await portal.getCustomers()) }))
+/**
+ * @openapi
+ * /api/portal/customers/{id}:
+ *   put:
+ *     tags: [portal]
+ *     summary: 고객사 수정 (권한 customers:write)
+ *     parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+ *     requestBody:
+ *       required: true
+ *       content: { application/json: { schema: { $ref: '#/components/schemas/Customer' } } }
+ *     responses:
+ *       200: { description: 수정된 고객사, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, customer: { $ref: '#/components/schemas/Customer' } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *   delete:
+ *     tags: [portal]
+ *     summary: 고객사 삭제 (권한 customers:write)
+ *     parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+ *     responses:
+ *       200: { description: 삭제됨, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 app.post('/api/portal/customers', requirePerm('customers', 'write'), async (req, res) => {
   const c = await portal.addCustomer(stampOwner(req, req.body || {}))
   auditReq(req, 'user', '고객사 등록', c?.name || c?.id, 'Created')
@@ -601,7 +663,46 @@ app.delete('/api/portal/customers/:id', requirePerm('customers', 'write'), async
   res.json({ ok: true })
 })
 
+/**
+ * @openapi
+ * /api/portal/domains:
+ *   get:
+ *     tags: [portal]
+ *     summary: 도메인 목록 (역할별 가시성 필터 적용)
+ *     responses:
+ *       200: { description: 도메인 목록, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, domains: { type: array, items: { $ref: '#/components/schemas/Domain' } } } } } } }
+ *   post:
+ *     tags: [portal]
+ *     summary: 도메인 등록 (권한 domains:write)
+ *     requestBody:
+ *       required: true
+ *       content: { application/json: { schema: { $ref: '#/components/schemas/Domain' } } }
+ *     responses:
+ *       200: { description: 등록된 도메인, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, domain: { $ref: '#/components/schemas/Domain' } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 app.get('/api/portal/domains', async (req, res) => res.json({ ok: true, domains: visibleTo(req, await portal.getDomains()) }))
+/**
+ * @openapi
+ * /api/portal/domains/{id}:
+ *   put:
+ *     tags: [portal]
+ *     summary: 도메인 수정 (권한 domains:write)
+ *     parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+ *     requestBody:
+ *       required: true
+ *       content: { application/json: { schema: { $ref: '#/components/schemas/Domain' } } }
+ *     responses:
+ *       200: { description: 수정된 도메인, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, domain: { $ref: '#/components/schemas/Domain' } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *   delete:
+ *     tags: [portal]
+ *     summary: 도메인 제거 (권한 domains:write)
+ *     parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+ *     responses:
+ *       200: { description: 삭제됨, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 app.post('/api/portal/domains', requirePerm('domains', 'write'), async (req, res) => {
   const d = await portal.addDomain(stampOwner(req, req.body || {}))
   auditReq(req, 'user', '도메인 등록', d?.serviceEndpoint || d?.primary || d?.id, 'Created')

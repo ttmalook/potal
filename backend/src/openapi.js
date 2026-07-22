@@ -68,6 +68,38 @@ const definition = {
           labRunId: { type: 'string', nullable: true, example: 'RUN-AB12CD34' },
           excluded: { type: 'boolean', description: '고객 전달에서 제외 여부', example: false }
         }
+      },
+      Customer: {
+        type: 'object',
+        description: '고객사(점검 대상 조직).',
+        properties: {
+          id: { type: 'string', example: 'CUST-001' },
+          name: { type: 'string', example: 'Acme Electronics' },
+          industry: { type: 'string', nullable: true, example: '전자/제조' },
+          domains: { type: 'integer', description: '도메인 수(요약값)', example: 4 },
+          openRisks: { type: 'integer', description: '오픈 리스크 수(요약값)', example: 3 },
+          lastCheck: { type: 'string', format: 'date', nullable: true, example: '2026-06-30' },
+          engineer: { type: 'string', nullable: true, example: 'Jiwon Park' },
+          status: { type: 'string', example: 'Active' },
+          contact: { type: 'string', nullable: true, example: 'security@acme.example' },
+          note: { type: 'string', nullable: true }
+        }
+      },
+      Domain: {
+        type: 'object',
+        description: '점검 대상 도메인(고객사 하위). 관계는 customer=고객사명(자연 키).',
+        properties: {
+          id: { type: 'string', example: 'DOM-001' },
+          customer: { type: 'string', description: '→ Customer.name', example: 'Acme Electronics' },
+          primary: { type: 'string', description: '호스트(스킴/포트/경로 제거 정규화)', example: 'www.example.co.kr' },
+          baseUrl: { type: 'string', nullable: true, example: 'https://www.example.co.kr' },
+          allow: { type: 'array', items: { type: 'string' }, description: '점검 허용 URL 패턴', example: ['https://www.example.co.kr/*'] },
+          deny: { type: 'array', items: { type: 'string' }, description: '점검 제외 URL 패턴', example: [] },
+          screenshot: { type: 'boolean', example: true },
+          har: { type: 'boolean', example: false },
+          consent: { type: 'string', nullable: true, example: '동의 완료' },
+          status: { type: 'string', example: 'In Scope' }
+        }
       }
     },
     responses: {

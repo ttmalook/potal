@@ -245,6 +245,38 @@ authRouter.get('/me', requireAuth, async (req, res) => {
 })
 
 // ── 사용자 관리 (관리자 전용) ──
+/**
+ * @openapi
+ * /api/auth/users:
+ *   get:
+ *     tags: [auth]
+ *     summary: 사용자 목록 (관리자 전용)
+ *     responses:
+ *       200: { description: 사용자 목록(passwordHash 제외), content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, users: { type: array, items: { $ref: '#/components/schemas/User' } } } } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *   post:
+ *     tags: [auth]
+ *     summary: 사용자 생성 (관리자 전용)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email, password]
+ *             properties:
+ *               email: { type: string, format: email, example: partner@demo.local }
+ *               password: { type: string, minLength: 8 }
+ *               name: { type: string }
+ *               role: { type: string, enum: [admin, partner, viewer], example: partner }
+ *               phone: { type: string, nullable: true }
+ *               department: { type: string, nullable: true }
+ *     responses:
+ *       200: { description: 생성된 사용자, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, user: { $ref: '#/components/schemas/User' } } } } } }
+ *       400: { description: 입력 오류(이메일·8자 이상 비밀번호), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       409: { description: 이메일 중복, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 authRouter.get('/users', requireAuth, requireAdmin, async (_req, res) => {
   res.json({ ok: true, users: (await store.listUsers()).map(publicUser) })
 })
@@ -260,6 +292,27 @@ authRouter.post('/users', requireAuth, requireAdmin, async (req, res) => {
 })
 
 // 사용자 정보 수정 (관리자 전용) — 이름·연락처·소속부서. 이메일(식별자)·역할은 변경 안 함(역할은 /role).
+/**
+ * @openapi
+ * /api/auth/users/{id}:
+ *   patch:
+ *     tags: [auth]
+ *     summary: 사용자 정보 수정 (관리자 전용) — 이름·연락처·소속. 이메일·역할 불변
+ *     parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name: { type: string }
+ *               phone: { type: string, nullable: true }
+ *               department: { type: string, nullable: true }
+ *     responses:
+ *       200: { description: 수정된 사용자, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, user: { $ref: '#/components/schemas/User' } } } } } }
+ *       404: { description: 사용자 없음, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 authRouter.patch('/users/:id', requireAuth, requireAdmin, async (req, res) => {
   const target = await store.getUserById(req.params.id)
   if (!target) return res.status(404).json({ ok: false, message: '사용자 없음' })
@@ -278,6 +331,28 @@ const PW_MIN = 8
 
 // 본인 변경 — 현재 비밀번호 검증 필수.
 //  (세션이 탈취돼도 공격자가 비밀번호를 바꿔 계정을 영구 장악하지 못하게 하는 장치)
+/**
+ * @openapi
+ * /api/auth/me/password:
+ *   post:
+ *     tags: [auth]
+ *     summary: 본인 비밀번호 변경 (현재 비밀번호 검증 필수)
+ *     description: 성공 시 해당 사용자의 refresh 세션 전부 폐기(다른 기기 강제 로그아웃). 비밀번호 값은 감사에 기록하지 않는다.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword: { type: string }
+ *               newPassword: { type: string, minLength: 8 }
+ *     responses:
+ *       200: { description: 변경됨(재로그인 필요), content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, message: { type: string } } } } } }
+ *       400: { description: 현재 비밀번호 불일치/약한 비밀번호/동일 비밀번호, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
 authRouter.post('/me/password', requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body || {}
   const u = await store.getUserById(req.user.id)
@@ -300,6 +375,28 @@ authRouter.post('/me/password', requireAuth, async (req, res) => {
 })
 
 // 관리자 재설정 — 대상 사용자가 비밀번호를 잊은 경우. 현재 비밀번호 불필요.
+/**
+ * @openapi
+ * /api/auth/users/{id}/password:
+ *   patch:
+ *     tags: [auth]
+ *     summary: 관리자 비밀번호 재설정 (현재 비밀번호 불필요 · 관리자 전용)
+ *     description: 대상 사용자의 refresh 세션 전부 폐기. 대상은 재로그인 필요.
+ *     parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [newPassword]
+ *             properties: { newPassword: { type: string, minLength: 8 } }
+ *     responses:
+ *       200: { description: 재설정됨, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, message: { type: string } } } } } }
+ *       400: { description: 약한 비밀번호, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       404: { description: 사용자 없음, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 authRouter.patch('/users/:id/password', requireAuth, requireAdmin, async (req, res) => {
   const { newPassword } = req.body || {}
   const target = await store.getUserById(req.params.id)
@@ -316,6 +413,28 @@ authRouter.patch('/users/:id/password', requireAuth, requireAdmin, async (req, r
   res.json({ ok: true, message: '비밀번호가 재설정되었습니다. 해당 사용자는 다시 로그인해야 합니다.' })
 })
 
+/**
+ * @openapi
+ * /api/auth/users/{id}/role:
+ *   patch:
+ *     tags: [auth]
+ *     summary: 사용자 역할 변경 (관리자 전용)
+ *     description: 마지막 관리자는 강등 불가(자기 자신 포함).
+ *     parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [role]
+ *             properties: { role: { type: string, enum: [admin, partner, viewer] } }
+ *     responses:
+ *       200: { description: 변경된 사용자, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, user: { $ref: '#/components/schemas/User' } } } } } }
+ *       400: { description: 마지막 관리자 강등 시도, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       404: { description: 사용자 없음, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 authRouter.patch('/users/:id/role', requireAuth, requireAdmin, async (req, res) => {
   const role = normalizeRole(req.body?.role)
   const target = await store.getUserById(req.params.id)
