@@ -22,6 +22,7 @@ import { initDb, isDbEnabled } from './db.js'
 import { authRouter, requireAuth, seedDefaultUser, assertAuthConfig } from './auth.js'
 import { migrateAuthIfEmpty, getUserByEmail as authGetByEmail, updateUser as authUpdateUser } from './authStore.js'
 import { requireAdmin, requirePerm, stampOwner, visibleTo } from './authz.js'
+import { validateBody, customerCreate, customerUpdate, domainCreate, domainUpdate } from './validate.js'
 import { openapiSpec } from './openapi.js'
 import { recordAudit, listAudit, seedAuditIfEmpty } from './auditStore.js'
 import { interpret as interpretGuide } from './guideInterpret.js'
@@ -645,13 +646,15 @@ app.get('/api/portal/customers', async (req, res) => res.json({ ok: true, custom
  *       403: { $ref: '#/components/responses/Forbidden' }
  */
 app.post('/api/portal/customers', requirePerm('customers', 'write'), async (req, res) => {
-  const c = await portal.addCustomer(stampOwner(req, req.body || {}))
+  const body = validateBody(customerCreate, req, res); if (!body) return
+  const c = await portal.addCustomer(stampOwner(req, body))
   auditReq(req, 'user', '고객사 등록', c?.name || c?.id, 'Created')
   res.json({ ok: true, customer: c })
 })
 app.put('/api/portal/customers/:id', requirePerm('customers', 'write'), async (req, res) => {
   if (!(await guardMutate(req, res, portal.getCustomers(), req.params.id))) return
-  const c = await portal.updateCustomer(req.params.id, req.body || {})
+  const body = validateBody(customerUpdate, req, res); if (!body) return
+  const c = await portal.updateCustomer(req.params.id, body)
   auditReq(req, 'user', '고객사 수정', c?.name || req.params.id, 'Updated')
   res.json({ ok: true, customer: c })
 })
@@ -704,13 +707,15 @@ app.get('/api/portal/domains', async (req, res) => res.json({ ok: true, domains:
  *       403: { $ref: '#/components/responses/Forbidden' }
  */
 app.post('/api/portal/domains', requirePerm('domains', 'write'), async (req, res) => {
-  const d = await portal.addDomain(stampOwner(req, req.body || {}))
+  const body = validateBody(domainCreate, req, res); if (!body) return
+  const d = await portal.addDomain(stampOwner(req, body))
   auditReq(req, 'user', '도메인 등록', d?.serviceEndpoint || d?.primary || d?.id, 'Created')
   res.json({ ok: true, domain: d })
 })
 app.put('/api/portal/domains/:id', requirePerm('domains', 'write'), async (req, res) => {
   if (!(await guardMutate(req, res, portal.getDomains(), req.params.id))) return
-  const d = await portal.updateDomain(req.params.id, req.body || {})
+  const body = validateBody(domainUpdate, req, res); if (!body) return
+  const d = await portal.updateDomain(req.params.id, body)
   auditReq(req, 'user', '도메인 수정', d?.serviceEndpoint || d?.primary || req.params.id, 'Updated')
   res.json({ ok: true, domain: d })
 })
