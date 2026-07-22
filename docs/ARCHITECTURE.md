@@ -134,6 +134,57 @@ flowchart LR
 - `db.js` 문서 저장소: `DOC_TABLES` 화이트리스트, `isDbEnabled()`.
 - Postgres 연결 실패 시 자동으로 JSON 파일 저장소로 폴백하고 **그 사실을 system 감사로 기록** → 관측 가능.
 
+## 9. 배포 인프라 (3-VM 토폴로지 · 사내 ESXi)
+
+논리 3티어를 유지하되 **근거 있는 분리만** 물리 VM으로 나눈 구성. 상세 절차·방화벽은 [`deploy/README.md`](../deploy/README.md).
+
+```mermaid
+flowchart TB
+  USER["사내망 사용자<br/>브라우저"]
+
+  subgraph APP["VM-APP · 프레젠테이션 + 애플리케이션"]
+    NGINX["nginx<br/>리버스프록시 · TLS · CSP/HSTS"]
+    SPA["정적 SPA<br/>(React/Vite dist)"]
+    BE["backend<br/>Express :8787 (호스트 미노출)"]
+    OLLAMA["ollama<br/>로컬 LLM"]
+  end
+
+  subgraph DBVM["VM-DB · 데이터 티어"]
+    PG[("PostgreSQL :5432<br/>PGSSL")]
+  end
+
+  subgraph LABVM["VM-LAB · 검증랩 (격리망 labnet)"]
+    COL["evidence-collector<br/>:8899 · Playwright"]
+    TGT["취약/조치 타깃 14종<br/>(호스트 포트 미노출)"]
+  end
+
+  SSC["SecurityScorecard API<br/>외부 · 필수"]
+  CLAUDE["Claude API<br/>외부 · 선택(Lab Builder)"]
+
+  USER -->|"443 / 80"| NGINX
+  NGINX -->|"/ 정적"| SPA
+  NGINX -->|"/api 프록시"| BE
+  BE -->|"5432 · PGSSL"| PG
+  BE -->|"8899"| COL
+  COL --> TGT
+  BE -.->|"HTTPS"| SSC
+  BE -.->|"HTTPS"| CLAUDE
+  BE --> OLLAMA
+```
+
+**방화벽 경계**(허용만, 나머지 전면 차단):
+
+| 출발 → 목적 | 포트 | 용도 |
+|---|---|---|
+| 사내망 → VM-APP | 80, 443 | 사용자 접근 |
+| VM-APP → VM-DB | 5432 | DB(PGSSL) — **VM-APP 에서만** |
+| VM-APP → VM-LAB | 8899 | 증적 수집기 호출 — **VM-APP 에서만** |
+| — → VM-LAB(그 외) | 차단 | 의도적 취약 서비스 격리 |
+
+- **분리 근거**: VM-LAB은 telnet·약한 SSH 등 **의도적 취약 서비스**를 실제 기동 → 이탈 시 앱 노출 방지로 물리 격리. VM-DB는 백업·복구를 앱과 독립. web+backend 동거는 사내 전용이라 DMZ 요건이 없고 nginx→backend가 이미 포트 미노출로 분리됨.
+- **가용성**: HA 이중화 없이 백업·복구로 **RTO 10분** 충족(동시 사용자 5명 규모 — HA는 과설계).
+- **backend 미노출**: 호스트 포트를 열지 않고 nginx 리버스프록시만 외부 대면 → 보안 헤더(CSP/HSTS)를 nginx 단일 소스로 부여.
+
 ---
 
 ## 주요 설계 트레이드오프
