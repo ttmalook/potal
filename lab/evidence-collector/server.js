@@ -354,7 +354,7 @@ async function captureClickjack(url, expectBlocked = false) {
         if (host) {
           const p = document.createElement('div')
           p.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b0f17;color:#e5e7eb;text-align:center;padding:20px'
-          p.innerHTML = '<div style="font-size:40px">⛔</div><div style="font-weight:700;margin-top:8px">브라우저가 프레이밍을 거부함</div><div style="font-size:12px;color:#94a3b8;margin-top:8px;max-width:520px;word-break:break-all">' + (err || 'Refused to display in a frame because it set X-Frame-Options.') + '</div>'
+          p.innerHTML = '<div style="font-size:40px">⛔</div><div style="font-weight:700;margin-top:8px">브라우저가 프레이밍을 거부함</div><div style="font-size:12px;color:#94a3b8;margin-top:8px;max-width:560px;overflow-wrap:anywhere;word-break:normal">' + (err || 'Refused to display in a frame because it set X-Frame-Options.') + '</div>'
           host.appendChild(p)
         }
         cap.textContent = '결과: iframe 삽입 차단됨 — 클릭재킹 공격 실패'
