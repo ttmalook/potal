@@ -48,6 +48,10 @@ export const apiSetUserRole = (id, role) => call(`/api/auth/users/${encodeURICom
 // 비밀번호 — 본인 변경(현재 비밀번호 필요) · 관리자 재설정
 export const apiChangeMyPassword = (currentPassword, newPassword) =>
   call('/api/auth/me/password', jsonOpts('POST', { currentPassword, newPassword }))
+// 세션(로그인 기기) 관리 — 본인 세션 목록/원격 폐기 (N-03)
+export const fetchSessions = () => call('/api/auth/sessions').then((d) => d.sessions || [])
+export const apiRevokeSession = (family) => call(`/api/auth/sessions/${encodeURIComponent(family)}`, jsonOpts('DELETE'))
+export const apiRevokeOtherSessions = () => call('/api/auth/sessions/revoke-others', jsonOpts('POST'))
 export const apiResetUserPassword = (id, newPassword) =>
   call(`/api/auth/users/${encodeURIComponent(id)}/password`, jsonOpts('PATCH', { newPassword }))
 export const apiUpdateUser = (id, patch) => call(`/api/auth/users/${encodeURIComponent(id)}`, jsonOpts('PATCH', patch)).then((d) => d.user)

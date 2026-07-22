@@ -92,6 +92,12 @@ export async function revokeAllForUser(userId) {
   if (n) saveFile()
   return n
 }
+// 현재 사용자의 활성 세션(비폐기·미만료 refresh 토큰) 목록 — 세션 관리(N-03)용.
+export async function listActiveForUser(userId) {
+  const now = Date.now()
+  const all = db.isDbEnabled() ? await db.docList(R) : fileState.refreshTokens
+  return (all || []).filter((r) => r.userId === userId && !r.revoked && Date.parse(r.expiresAt) > now)
+}
 export async function pruneExpired() {
   const now = Date.now()
   if (db.isDbEnabled()) { for (const r of await db.docList(R)) if (Date.parse(r.expiresAt) <= now) await db.docDelete(R, r.tokenHash); return }

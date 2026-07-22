@@ -2,10 +2,10 @@
 // Customer Registration Wizard + Domain 등록 Modal
 // 전부 mock — 실제 API/DB 저장 없음. local state로 목록에 임시 추가.
 // =====================================================================
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import * as data from '../data/mock.js'
 import { parseEndpoint, endpointConflicts } from '../lib/domainScope.js'
-import { apiChangeMyPassword } from '../lib/portalApi.js'
+import { apiChangeMyPassword, fetchSessions, apiRevokeSession, apiRevokeOtherSessions } from '../lib/portalApi.js'
 import { passwordPolicyError, PW_POLICY_MSG } from '../lib/passwordPolicy.js'
 import {
   Modal,
@@ -285,6 +285,63 @@ export function CustomerEditModal({ customer, onClose, onSubmit, showToast }) {
 }
 
 // =====================================================================
+// 사람이 읽기 쉬운 기기 라벨(브라우저·OS 요약). 원문은 title 로 노출.
+function uaLabel(ua) {
+  const s = String(ua || '')
+  if (!s) return '알 수 없는 기기'
+  const br = /Edg\//.test(s) ? 'Edge' : /OPR\/|Opera/.test(s) ? 'Opera' : /Chrome\//.test(s) ? 'Chrome' : /Firefox\//.test(s) ? 'Firefox' : /Safari\//.test(s) ? 'Safari' : '브라우저'
+  const os = /Windows/.test(s) ? 'Windows' : /Mac OS X|Macintosh/.test(s) ? 'macOS' : /Android/.test(s) ? 'Android' : /iPhone|iPad|iOS/.test(s) ? 'iOS' : /Linux/.test(s) ? 'Linux' : ''
+  return os ? `${br} · ${os}` : br
+}
+const fmtTime = (t) => { try { return new Date(t).toLocaleString('ko-KR') } catch { return t } }
+
+// 로그인 세션(기기) 목록 + 원격 폐기 (N-03)
+function SessionsSection({ showToast }) {
+  const [sessions, setSessions] = useState(null) // null=로딩
+  const [busy, setBusy] = useState('')
+  const load = () => fetchSessions().then(setSessions).catch(() => setSessions([]))
+  useEffect(() => { load() }, [])
+
+  const revoke = async (family) => {
+    setBusy(family)
+    try { await apiRevokeSession(family); showToast?.({ tone: 'success', text: '해당 기기의 세션을 종료했습니다' }); await load() }
+    catch (e) { showToast?.({ tone: 'danger', text: e?.payload?.message || '세션 종료 실패' }) }
+    finally { setBusy('') }
+  }
+  const revokeOthers = async () => {
+    setBusy('others')
+    try { const r = await apiRevokeOtherSessions(); showToast?.({ tone: 'success', text: `다른 세션 ${r?.revoked ?? 0}개를 종료했습니다` }); await load() }
+    catch (e) { showToast?.({ tone: 'danger', text: e?.payload?.message || '세션 종료 실패' }) }
+    finally { setBusy('') }
+  }
+
+  const others = (sessions || []).filter((s) => !s.current)
+  return (
+    <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div className="mini-title">로그인 세션 (기기)</div>
+        {others.length > 0 && <SecondaryButton onClick={revokeOthers} disabled={!!busy}>다른 모든 세션 종료</SecondaryButton>}
+      </div>
+      {sessions === null && <p className="hint-text">불러오는 중…</p>}
+      {sessions && sessions.length === 0 && <p className="hint-text">활성 세션이 없습니다.</p>}
+      {sessions && sessions.map((s) => (
+        <div key={s.family} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '9px 0', borderTop: '1px solid var(--border-subtle,#f1f3f5)' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600 }} title={s.userAgent || ''}>
+              {uaLabel(s.userAgent)} {s.current && <span className="badge badge-soft badge-success" style={{ marginLeft: 6 }}>현재 기기</span>}
+            </div>
+            <div className="hint-text" style={{ margin: 0 }}>IP {s.ip || '—'} · 최근 사용 {fmtTime(s.lastUsedAt)}</div>
+          </div>
+          {s.current
+            ? <span className="hint-text" style={{ whiteSpace: 'nowrap' }}>이 기기</span>
+            : <SecondaryButton onClick={() => revoke(s.family)} disabled={!!busy}>{busy === s.family ? '종료 중…' : '로그아웃'}</SecondaryButton>}
+        </div>
+      ))}
+      <p className="hint-text" style={{ marginTop: 8 }}>세션 타임아웃 <b>10분</b>(유휴 시 자동 로그아웃). 낯선 기기가 있으면 즉시 종료하세요.</p>
+    </div>
+  )
+}
+
 // 본인 비밀번호 변경 — 현재 비밀번호 검증 필수.
 //  변경에 성공하면 서버가 모든 세션을 폐기하므로 재로그인해야 한다.
 // =====================================================================
@@ -314,7 +371,7 @@ export function ChangePasswordModal({ onClose, onDone, showToast }) {
   }
 
   return (
-    <Modal title="비밀번호 변경" subtitle="변경 후 다시 로그인해야 합니다" onClose={onClose} size="sm"
+    <Modal title="계정 보안" subtitle="비밀번호 변경 · 로그인 세션 관리" onClose={onClose} size="sm"
       footer={<>
         <SecondaryButton onClick={onClose}>취소</SecondaryButton>
         <PrimaryButton onClick={submit} disabled={!canSubmit}>{busy ? '변경 중…' : '변경'}</PrimaryButton>
@@ -337,6 +394,7 @@ export function ChangePasswordModal({ onClose, onDone, showToast }) {
       <p className="hint-text" style={{ marginTop: 10 }}>
         변경하면 <b>모든 기기의 세션이 로그아웃</b>되며, 감사 로그에 기록됩니다(비밀번호 값은 기록되지 않음).
       </p>
+      <SessionsSection showToast={showToast} />
     </Modal>
   )
 }

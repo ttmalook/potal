@@ -12,8 +12,10 @@ import { requireAdmin, permsForRole, normalizeRole } from './authz.js'
 import { recordAudit } from './auditStore.js'
 
 const ACCESS_SECRET = process.env.AUTH_ACCESS_SECRET || 'dev-access-secret-change-me'
-const ACCESS_TTL_SEC = 15 * 60
-const REFRESH_TTL_MS = 7 * 24 * 60 * 60 * 1000
+// 세션 타임아웃(유휴 10분): refresh(=세션)가 10분. access 는 그보다 짧아(5분) 활성 사용자는
+//  회전으로 세션이 슬라이딩 연장되고, 10분간 활동이 없으면 refresh 만료 → 재로그인.
+const ACCESS_TTL_SEC = Number(process.env.ACCESS_TTL_SEC || 5 * 60)
+const REFRESH_TTL_MS = Number(process.env.SESSION_IDLE_MIN || 10) * 60 * 1000
 const REFRESH_COOKIE = 'ssc_rt'
 
 // ── 비밀번호 (scrypt) ──
@@ -52,10 +54,17 @@ export function verifyAccess(token) {
 
 // ── Refresh token (opaque + 쿠키) ──
 const hashToken = (t) => crypto.createHash('sha256').update(t).digest('hex')
-async function issueRefresh(res, userId, family) {
+async function issueRefresh(res, userId, family, meta = {}) {
   const token = crypto.randomBytes(32).toString('hex')
   const fam = family || crypto.randomBytes(8).toString('hex')
-  await store.addRefresh({ tokenHash: hashToken(token), userId, family: fam, expiresAt: new Date(Date.now() + REFRESH_TTL_MS).toISOString(), revoked: false, createdAt: new Date().toISOString() })
+  const now = new Date().toISOString()
+  await store.addRefresh({
+    tokenHash: hashToken(token), userId, family: fam,
+    expiresAt: new Date(Date.now() + REFRESH_TTL_MS).toISOString(), revoked: false,
+    createdAt: meta.createdAt || now,   // family 최초 로그인 시각 유지(회전 시 전달)
+    lastUsedAt: now,                    // 이 토큰 발급/사용 시각
+    ip: meta.ip || null, userAgent: meta.userAgent || null
+  })
   const secure = process.env.NODE_ENV === 'production' ? '; Secure' : ''
   res.setHeader('Set-Cookie', `${REFRESH_COOKIE}=${token}; HttpOnly; Path=/api/auth; Max-Age=${REFRESH_TTL_MS / 1000}; SameSite=Strict${secure}`)
   return fam
@@ -70,6 +79,14 @@ function parseCookies(req) {
     out[part.slice(0, i).trim()] = decodeURIComponent(part.slice(i + 1).trim())
   }
   return out
+}
+const uaOf = (req) => String(req.headers['user-agent'] || '').slice(0, 200) || null
+// 현재 요청의 refresh 쿠키에 해당하는 family(활성 세션 식별) — 없으면 null.
+async function currentFamily(req) {
+  const token = parseCookies(req)[REFRESH_COOKIE]
+  if (!token) return null
+  const rec = await store.findRefresh(hashToken(token))
+  return rec && !rec.revoked ? rec.family : null
 }
 
 const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, role: u.role, phone: u.phone || null, department: u.department || null, permissions: permsForRole(u.role) })
@@ -156,7 +173,7 @@ authRouter.post('/login', async (req, res) => {
     recordAudit({ kind: 'security', actor: String(email || '').trim().toLowerCase() || 'anon', action: '로그인 실패', target: '자격 증명 불일치', result: 'Failed', ip: req.ip })
     return res.status(401).json({ ok: false, errorCode: 'BAD_CREDENTIALS', message: '이메일 또는 비밀번호가 올바르지 않습니다.' })
   }
-  await issueRefresh(res, u.id)
+  await issueRefresh(res, u.id, undefined, { ip: req.ip, userAgent: uaOf(req) })
   recordAudit({ kind: 'security', actor: u.email, role: u.role, action: '로그인', target: '세션 발급', result: 'OK', ip: req.ip })
   res.json({ ok: true, access: signAccess({ sub: u.id, email: u.email, role: u.role }), user: publicUser(u) })
 })
@@ -192,7 +209,7 @@ authRouter.post('/refresh', async (req, res) => {
   const u = await store.getUserById(rec.userId)
   if (!u) { clearRefreshCookie(res); return res.status(401).json({ ok: false }) }
   await store.revokeToken(rec.tokenHash) // 회전: 이전 것 폐기 후 새 것 발급(같은 family)
-  await issueRefresh(res, u.id, rec.family)
+  await issueRefresh(res, u.id, rec.family, { ip: req.ip, userAgent: rec.userAgent, createdAt: rec.createdAt })
   res.json({ ok: true, access: signAccess({ sub: u.id, email: u.email, role: u.role }), user: publicUser(u) })
 })
 
@@ -242,6 +259,75 @@ authRouter.get('/me', requireAuth, async (req, res) => {
   const u = await store.getUserById(req.user.id)
   if (!u) return res.status(401).json({ ok: false })
   res.json({ ok: true, user: publicUser(u) })
+})
+
+// ── 세션(로그인 기기) 관리 — 본인 세션 목록/원격 폐기 (N-03) ──
+// family = 로그인 1건(회전해도 동일 family). 활성 토큰을 family 별로 묶어 표시.
+/**
+ * @openapi
+ * /api/auth/sessions:
+ *   get:
+ *     tags: [auth]
+ *     summary: 내 활성 세션(로그인 기기) 목록
+ *     responses:
+ *       200: { description: 세션 목록, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, sessions: { type: array, items: { type: object, properties: { family: { type: string }, ip: { type: string, nullable: true }, userAgent: { type: string, nullable: true }, createdAt: { type: string }, lastUsedAt: { type: string }, current: { type: boolean } } } } } } } } }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
+authRouter.get('/sessions', requireAuth, async (req, res) => {
+  const active = await store.listActiveForUser(req.user.id)
+  const curFam = await currentFamily(req)
+  // family 별로 가장 최근 사용 토큰만 대표로.
+  const byFam = new Map()
+  for (const r of active) {
+    const prev = byFam.get(r.family)
+    if (!prev || Date.parse(r.lastUsedAt || r.createdAt) > Date.parse(prev.lastUsedAt || prev.createdAt)) byFam.set(r.family, r)
+  }
+  const sessions = [...byFam.values()]
+    .map((r) => ({ family: r.family, ip: r.ip || null, userAgent: r.userAgent || null, createdAt: r.createdAt, lastUsedAt: r.lastUsedAt || r.createdAt, current: r.family === curFam }))
+    .sort((a, b) => Date.parse(b.lastUsedAt) - Date.parse(a.lastUsedAt))
+  res.json({ ok: true, sessions })
+})
+
+/**
+ * @openapi
+ * /api/auth/sessions/{family}:
+ *   delete:
+ *     tags: [auth]
+ *     summary: 특정 세션(로그인 기기) 원격 폐기 (본인 소유만)
+ *     parameters: [{ name: family, in: path, required: true, schema: { type: string } }]
+ *     responses:
+ *       200: { description: 폐기됨, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, revoked: { type: integer } } } } } }
+ *       404: { description: 대상 세션 없음(본인 소유 아님), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
+authRouter.delete('/sessions/:family', requireAuth, async (req, res) => {
+  const fam = req.params.family
+  const active = await store.listActiveForUser(req.user.id)
+  if (!active.some((r) => r.family === fam)) return res.status(404).json({ ok: false, errorCode: 'NOT_FOUND', message: '세션 없음' })
+  const n = await store.revokeFamily(fam)
+  if (fam === (await currentFamily(req))) clearRefreshCookie(res) // 현재 세션이면 쿠키도 삭제
+  recordAudit({ kind: 'security', actor: req.user.email, role: req.user.role, action: '세션 원격 폐기', target: `family ${fam}`, result: 'OK', ip: req.ip })
+  res.json({ ok: true, revoked: n })
+})
+
+/**
+ * @openapi
+ * /api/auth/sessions/revoke-others:
+ *   post:
+ *     tags: [auth]
+ *     summary: 현재 세션을 제외한 내 모든 세션 폐기
+ *     responses:
+ *       200: { description: 폐기됨, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, revoked: { type: integer } } } } } }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
+authRouter.post('/sessions/revoke-others', requireAuth, async (req, res) => {
+  const curFam = await currentFamily(req)
+  const active = await store.listActiveForUser(req.user.id)
+  const fams = [...new Set(active.map((r) => r.family).filter((f) => f !== curFam))]
+  let revoked = 0
+  for (const f of fams) revoked += await store.revokeFamily(f)
+  recordAudit({ kind: 'security', actor: req.user.email, role: req.user.role, action: '다른 세션 전체 폐기', target: `${fams.length}개 세션`, result: 'OK', ip: req.ip })
+  res.json({ ok: true, revoked })
 })
 
 // ── 사용자 관리 (관리자 전용) ──
