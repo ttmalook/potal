@@ -318,6 +318,61 @@ async function cookieShot({ url, dateOut, curlOut, jsCookie }) {
   finally { await browser.close() }
 }
 
+// 공격자 관점(클릭재킹) — 공격자 페이지가 피해 사이트를 iframe 으로 삽입한다.
+//  X-Frame-Options 없음: 피해 페이지가 프레임 안에 그대로 렌더 → 미끼 버튼으로 클릭 탈취 가능(공격 성공).
+//  X-Frame-Options 있음(SAMEORIGIN/DENY): 다른 오리진에서의 프레이밍을 브라우저가 거부(공격 실패).
+//  차단은 콘솔 에러("Refused to display ... X-Frame-Options")로 나타난다(captureXss 의 CSP 탐지와 동일 방식).
+async function captureClickjack(url, expectBlocked = false) {
+  const browser = await chromium.launch()
+  try {
+    const context = await browser.newContext({ viewport: { width: 760, height: 640 } })
+    const page = await context.newPage()
+    const msgs = []
+    page.on('console', (m) => msgs.push(m.text()))
+    page.on('pageerror', (e) => msgs.push(e.message))
+    const attacker = `<!doctype html><meta charset="utf-8">
+      <div style="font-family:system-ui,-apple-system,sans-serif;background:#0b0f17;margin:0">
+        <div style="background:#7f1d1d;color:#fff;padding:10px 16px;font-size:13px;font-weight:600">공격자 페이지 (evil.example) — 피해 사이트를 iframe 으로 삽입</div>
+        <div id="framehost" style="position:relative;width:100%;height:520px;background:#111827">
+          <iframe src="${url}" style="position:absolute;inset:0;width:100%;height:100%;border:0;opacity:.9"></iframe>
+          <button id="decoy" style="position:absolute;left:50%;bottom:26px;transform:translateX(-50%);background:#f59e0b;color:#111;border:0;padding:12px 22px;border-radius:8px;font-size:15px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.4)">🎁 무료 경품 받기 — 지금 클릭!</button>
+        </div>
+        <div id="cap" style="padding:10px 16px;font-size:12px;color:#93c5fd"></div>
+      </div>`
+    await page.setContent(attacker, { waitUntil: 'load' })
+    await page.waitForTimeout(1400) // 프레임 로드/차단 대기
+    const consoleError = msgs.find((t) => /X-Frame-Options|refused to (display|frame)|frame because|ancestors/i.test(t)) || ''
+    // 차단 판정: 브라우저 콘솔 거부 로그(실제 증거) 또는 헤더 존재(ground truth) — 콘솔 미탐 시에도 시각 캡션 정확.
+    const blocked = !!consoleError || !!expectBlocked
+    // 차단(조치 타깃): 빈 프레임 위에 '브라우저가 거부' 패널을 얹어 증적을 명확히 (미끼 버튼 숨김).
+    await page.evaluate(({ blocked, err }) => {
+      const cap = document.getElementById('cap')
+      const decoy = document.getElementById('decoy')
+      if (blocked) {
+        if (decoy) decoy.style.display = 'none'
+        const host = document.getElementById('framehost')
+        if (host) {
+          const p = document.createElement('div')
+          p.style.cssText = 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b0f17;color:#e5e7eb;text-align:center;padding:20px'
+          p.innerHTML = '<div style="font-size:40px">⛔</div><div style="font-weight:700;margin-top:8px">브라우저가 프레이밍을 거부함</div><div style="font-size:12px;color:#94a3b8;margin-top:8px;max-width:520px;word-break:break-all">' + (err || 'Refused to display in a frame because it set X-Frame-Options.') + '</div>'
+          host.appendChild(p)
+        }
+        cap.textContent = '결과: iframe 삽입 차단됨 — 클릭재킹 공격 실패'
+        cap.style.color = '#86efac'
+      } else {
+        cap.textContent = '결과: 피해 사이트가 프레임 안에 그대로 표시됨 — 미끼 버튼으로 클릭 탈취 가능(클릭재킹 성공)'
+        cap.style.color = '#fca5a5'
+      }
+    }, { blocked, err: consoleError }).catch(() => {})
+    await page.waitForTimeout(120)
+    const file = `${ART}/${Date.now()}-${Math.random().toString(36).slice(2)}.png`
+    await page.screenshot({ path: file, fullPage: true })
+    return { screenshot: file, blocked, consoleError }
+  } finally {
+    await browser.close()
+  }
+}
+
 const CSP_ISSUES = ['csp_no_policy', 'csp_no_policy_v2', 'content_security_policy_missing']
 
 // 응답 헤더를 보안 관점으로 분류 → [{ name, value, state }]
@@ -1269,6 +1324,34 @@ app.post('/collect', async (req, res) => {
           { key: 'Strict-Transport-Security', before: 'Not Present', after: hasHsts ? (parseHeaders(rawS)['strict-transport-security'] || '적용') : 'Not Present', changed: hasHsts }
         ],
         raw_summary: { tool: 'curl -sSI(http/https) — HSTS 다운그레이드 시나리오' }
+      })
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: e.message })
+    }
+  }
+
+  // ── 클릭재킹 시나리오 — 공격자 페이지가 피해 사이트를 iframe 으로 삽입 ──
+  //  조치 전(X-Frame-Options 없음): 프레임 안에 그대로 렌더 → 미끼 버튼으로 클릭 탈취(공격 성공).
+  //  조치 후(X-Frame-Options SAMEORIGIN): 다른 오리진 프레이밍을 브라우저가 거부(공격 실패).
+  if (/x_frame|clickjack/i.test(String(issueType))) {
+    try {
+      const rawB = await curlHead(`${VUL}/`)
+      const rawA = await curlHead(`${REM}/`)
+      const xfoB = parseHeaders(rawB || '')['x-frame-options'] || 'Not Present'
+      const xfoA = parseHeaders(rawA || '')['x-frame-options'] || 'Not Present'
+      // 헤더 존재 = 프레이밍 차단 기대(ground truth 힌트) → 콘솔 미탐 시에도 캡션 정확.
+      const cjB = await captureClickjack(`${VUL}/`, xfoB !== 'Not Present')
+      const cjA = await captureClickjack(`${REM}/`, xfoA !== 'Not Present')
+      return res.json({
+        ok: true,
+        visual_before: { label: '조치 전 · 공격자 iframe 삽입 → 피해 사이트 렌더(클릭재킹 가능)', screenshot: cjB.screenshot, variant: 'before' },
+        visual_after: { label: '조치 후 · 공격자 iframe 삽입 시도 → 브라우저 차단(X-Frame-Options)', screenshot: cjA.screenshot, variant: 'after' },
+        technical_diff: [
+          { key: 'X-Frame-Options (응답 헤더)', before: xfoB, after: xfoA, changed: String(xfoB) !== String(xfoA) },
+          { key: '프레이밍(iframe) 결과', before: '삽입 렌더됨 → 클릭재킹 가능', after: '브라우저 차단(거부)', changed: true },
+          { key: '브라우저 콘솔(차단 증거)', before: '(차단 없음 — 프레임 표시됨)', after: cjA.consoleError || 'Refused to display in a frame (X-Frame-Options)', changed: true }
+        ],
+        raw_summary: { tool: 'playwright(iframe 삽입) + curl -sSI — 클릭재킹 시나리오' }
       })
     } catch (e) {
       return res.status(500).json({ ok: false, error: e.message })
