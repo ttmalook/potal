@@ -6,6 +6,7 @@ import React, { useState } from 'react'
 import * as data from '../data/mock.js'
 import { parseEndpoint, endpointConflicts } from '../lib/domainScope.js'
 import { apiChangeMyPassword } from '../lib/portalApi.js'
+import { passwordPolicyError, PW_POLICY_MSG } from '../lib/passwordPolicy.js'
 import {
   Modal,
   Field,
@@ -294,10 +295,10 @@ export function ChangePasswordModal({ onClose, onDone, showToast }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
-  const tooShort = pw.length > 0 && pw.length < 8
+  const pwErr = pw.length > 0 ? passwordPolicyError(pw) : null
   const mismatch = pw2.length > 0 && pw !== pw2
   const same = pw.length > 0 && cur === pw
-  const canSubmit = cur.length > 0 && pw.length >= 8 && pw === pw2 && !same && !busy
+  const canSubmit = cur.length > 0 && !passwordPolicyError(pw) && pw === pw2 && !same && !busy
 
   const submit = async () => {
     if (!canSubmit) return
@@ -322,14 +323,14 @@ export function ChangePasswordModal({ onClose, onDone, showToast }) {
         <Field label="현재 비밀번호" required>
           <input type="password" autoComplete="current-password" value={cur} onChange={(e) => setCur(e.target.value)} placeholder="현재 비밀번호" />
         </Field>
-        <Field label="새 비밀번호" required hint="8자 이상">
+        <Field label="새 비밀번호" required hint={PW_POLICY_MSG}>
           <input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="새 비밀번호" />
         </Field>
         <Field label="새 비밀번호 확인" required>
           <input type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="한 번 더 입력" />
         </Field>
       </div>
-      {tooShort && <NoticeBox tone="warning">새 비밀번호는 8자 이상이어야 합니다.</NoticeBox>}
+      {pwErr && <NoticeBox tone="warning">{pwErr}</NoticeBox>}
       {mismatch && <NoticeBox tone="warning">두 입력이 일치하지 않습니다.</NoticeBox>}
       {same && <NoticeBox tone="warning">현재 비밀번호와 다른 값을 사용하세요.</NoticeBox>}
       {err && <NoticeBox tone="danger">{err}</NoticeBox>}

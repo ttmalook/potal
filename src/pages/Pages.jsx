@@ -59,6 +59,7 @@ import { engineGuide } from '../data/engineGuides.js'
 const PROC_ICON = { 1: 'customers', 2: 'domains', 3: 'collect', 4: 'findings', 5: 'sandbox', 6: 'evidence', 7: 'customer-view', 8: 'remediation', 9: 'rescan' }
 const STAT_ICON = { customers: 'customers', domains: 'domains', evidenceAll: 'evidence', evidenceReady: 'evidence', newFindings: 'findings', sandboxRate: 'sandbox', reobservation: 'rescan' }
 import { getLabRun } from '../lib/labApi.js'
+import { passwordPolicyError, PW_POLICY_MSG } from '../lib/passwordPolicy.js'
 
 // 공통 고지 문구 박스
 function LegalFooter() {
@@ -2015,9 +2016,9 @@ function PasswordResetCard({ user, app }) {
   const [pw, setPw] = useState('')
   const [pw2, setPw2] = useState('')
   const [busy, setBusy] = useState(false)
-  const tooShort = pw.length > 0 && pw.length < 8
+  const pwErr = pw.length > 0 ? passwordPolicyError(pw) : null
   const mismatch = pw2.length > 0 && pw !== pw2
-  const canSubmit = pw.length >= 8 && pw === pw2 && !busy
+  const canSubmit = !passwordPolicyError(pw) && pw === pw2 && !busy
 
   const submit = async () => {
     if (!canSubmit) return
@@ -2035,14 +2036,14 @@ function PasswordResetCard({ user, app }) {
     <div className="card" style={{ marginTop: 14 }}>
       <div className="mini-title">비밀번호 재설정 <span className="hint-text" style={{ fontWeight: 400 }}>관리자 전용</span></div>
       <div className="modal-form" style={{ marginTop: 10 }}>
-        <Field label="새 비밀번호" required hint="8자 이상">
+        <Field label="새 비밀번호" required hint={PW_POLICY_MSG}>
           <input type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} placeholder="새 비밀번호" />
         </Field>
         <Field label="새 비밀번호 확인" required>
           <input type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} placeholder="한 번 더 입력" />
         </Field>
       </div>
-      {tooShort && <p className="hint-text" style={{ color: 'var(--text-danger)' }}>8자 이상이어야 합니다.</p>}
+      {pwErr && <p className="hint-text" style={{ color: 'var(--text-danger)' }}>{pwErr}</p>}
       {mismatch && <p className="hint-text" style={{ color: 'var(--text-danger)' }}>두 입력이 일치하지 않습니다.</p>}
       <div style={{ marginTop: 10 }}>
         <SecondaryButton onClick={submit} disabled={!canSubmit}>{busy ? '재설정 중…' : '비밀번호 재설정'}</SecondaryButton>
@@ -2108,7 +2109,7 @@ export function UsersAdmin({ app }) {
                 <Field label="이름"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="이름 (선택)" /></Field>
                 <Field label="연락처"><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="010-0000-0000 (선택)" /></Field>
                 <Field label="소속부서"><input value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} placeholder="예: 보안운영팀 (선택)" /></Field>
-                <Field label="비밀번호" required hint="8자 이상"><input type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="비밀번호" /></Field>
+                <Field label="비밀번호" required hint={PW_POLICY_MSG}><input type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="비밀번호" /></Field>
                 <Field label="역할"><select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}><option value="viewer">뷰어 (읽기 전용)</option><option value="partner">파트너</option><option value="admin">관리자</option></select></Field>
               </div>
             </Modal>

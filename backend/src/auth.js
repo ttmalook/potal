@@ -273,7 +273,7 @@ authRouter.get('/me', requireAuth, async (req, res) => {
  *               department: { type: string, nullable: true }
  *     responses:
  *       200: { description: 생성된 사용자, content: { application/json: { schema: { type: object, properties: { ok: { type: boolean }, user: { $ref: '#/components/schemas/User' } } } } } }
- *       400: { description: 입력 오류(이메일·8자 이상 비밀번호), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+ *       400: { description: 입력 오류(이메일 누락 또는 비밀번호 정책 위반 — 8자 이상·문자 3종 조합), content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
  *       409: { description: 이메일 중복, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
  *       403: { $ref: '#/components/responses/Forbidden' }
  */
@@ -284,7 +284,8 @@ authRouter.get('/users', requireAuth, requireAdmin, async (_req, res) => {
 authRouter.post('/users', requireAuth, requireAdmin, async (req, res) => {
   const { email, password, name, role, phone, department } = req.body || {}
   const em = String(email || '').trim().toLowerCase()
-  if (!em || !password || String(password).length < 8) return res.status(400).json({ ok: false, errorCode: 'BAD_INPUT', message: '이메일과 8자 이상 비밀번호가 필요합니다.' })
+  if (!em) return res.status(400).json({ ok: false, errorCode: 'BAD_INPUT', message: '이메일이 필요합니다.' })
+  { const perr = passwordPolicyError(password); if (perr) return res.status(400).json({ ok: false, errorCode: 'WEAK_PASSWORD', message: perr }) }
   if (await store.getUserByEmail(em)) return res.status(409).json({ ok: false, errorCode: 'DUPLICATE', message: '이미 존재하는 이메일입니다.' })
   const u = { id: `usr-${crypto.randomBytes(6).toString('hex')}`, email: em, name: name || em, role: normalizeRole(role), phone: (phone || '').trim() || null, department: (department || '').trim() || null, passwordHash: hashPassword(password) }
   await store.addUser(u)
@@ -325,9 +326,18 @@ authRouter.patch('/users/:id', requireAuth, requireAdmin, async (req, res) => {
 })
 
 // ── 비밀번호 ──
-// 공통 정책: 8자 이상 · 변경 시 해당 사용자의 refresh 세션 전부 폐기(다른 기기 강제 로그아웃)
+// 공통 정책: 8자 이상 + 문자 종류 3종 이상 조합 · 변경 시 해당 사용자의 refresh 세션 전부 폐기
 //            · 감사 기록은 남기되 비밀번호 값은 절대 기록하지 않음.
 const PW_MIN = 8
+const PW_MSG = `비밀번호는 ${PW_MIN}자 이상, 대문자·소문자·숫자·특수문자 중 3종류 이상을 조합해야 합니다.`
+// 정책 위반 시 메시지 반환, 통과 시 null.
+function passwordPolicyError(pw) {
+  const s = String(pw ?? '')
+  if (s.length < PW_MIN) return PW_MSG
+  const classes = [/[A-Z]/, /[a-z]/, /[0-9]/, /[^A-Za-z0-9]/].filter((re) => re.test(s)).length
+  if (classes < 3) return PW_MSG
+  return null
+}
 
 // 본인 변경 — 현재 비밀번호 검증 필수.
 //  (세션이 탈취돼도 공격자가 비밀번호를 바꿔 계정을 영구 장악하지 못하게 하는 장치)
@@ -361,9 +371,7 @@ authRouter.post('/me/password', requireAuth, async (req, res) => {
     recordAudit({ kind: 'security', actor: u.email, role: u.role, action: '비밀번호 변경 실패', target: '현재 비밀번호 불일치', result: 'Failed', ip: req.ip })
     return res.status(400).json({ ok: false, errorCode: 'BAD_CURRENT_PASSWORD', message: '현재 비밀번호가 올바르지 않습니다.' })
   }
-  if (!newPassword || String(newPassword).length < PW_MIN) {
-    return res.status(400).json({ ok: false, errorCode: 'WEAK_PASSWORD', message: `새 비밀번호는 ${PW_MIN}자 이상이어야 합니다.` })
-  }
+  { const perr = passwordPolicyError(newPassword); if (perr) return res.status(400).json({ ok: false, errorCode: 'WEAK_PASSWORD', message: perr }) }
   if (currentPassword === newPassword) {
     return res.status(400).json({ ok: false, errorCode: 'SAME_PASSWORD', message: '현재 비밀번호와 다른 값을 사용하세요.' })
   }
@@ -401,9 +409,7 @@ authRouter.patch('/users/:id/password', requireAuth, requireAdmin, async (req, r
   const { newPassword } = req.body || {}
   const target = await store.getUserById(req.params.id)
   if (!target) return res.status(404).json({ ok: false, message: '사용자 없음' })
-  if (!newPassword || String(newPassword).length < PW_MIN) {
-    return res.status(400).json({ ok: false, errorCode: 'WEAK_PASSWORD', message: `새 비밀번호는 ${PW_MIN}자 이상이어야 합니다.` })
-  }
+  { const perr = passwordPolicyError(newPassword); if (perr) return res.status(400).json({ ok: false, errorCode: 'WEAK_PASSWORD', message: perr }) }
   await store.updateUser(target.id, { passwordHash: hashPassword(newPassword) })
   const revoked = await store.revokeAllForUser(target.id)
   // 자기 자신을 재설정한 경우 현재 세션도 무효화
