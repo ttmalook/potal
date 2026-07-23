@@ -261,3 +261,5 @@ crontab -e
 - **랩 없이도 포털은 동작합니다.** VM-LAB 장애 시 증적 생성/재촬영만 실패하고 나머지 기능은 정상입니다.
 - **ollama 없이도 동작합니다.** 가이드 "쉬운말 해석"만 폴백되고 나머지는 정상입니다.
 - 실인증서로 전환 시 `certs` 볼륨에 `fullchain.pem`/`privkey.pem` 을 넣으면 자동 사용되며, HTTPS 정상 확인 후 `ENABLE_HSTS=true` 로 단계적 강화하세요.
+  - **공인 CA(Let's Encrypt)**: 표준 포트(80 HTTP-01 / 443 TLS-ALPN-01) 중 하나가 VM-APP 까지 도달해야 함. DNS 를 직접 관리하는 도메인이면 DNS-01(포트 불필요)도 가능.
+  - **표준 포트를 다른 서비스가 점유**해 공인 CA 검증이 어려우면 **사내 사설 CA**: [`deploy/certs/make-internal-ca.sh`](certs/make-internal-ca.sh) 로 CA+서버 인증서를 만들고, `ca.crt` 를 접속 PC 신뢰 저장소에 설치하면 경고가 사라집니다.
