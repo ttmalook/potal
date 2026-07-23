@@ -263,3 +263,44 @@ crontab -e
 - 실인증서로 전환 시 `certs` 볼륨에 `fullchain.pem`/`privkey.pem` 을 넣으면 자동 사용되며, HTTPS 정상 확인 후 `ENABLE_HSTS=true` 로 단계적 강화하세요.
   - **공인 CA(Let's Encrypt)**: 표준 포트(80 HTTP-01 / 443 TLS-ALPN-01) 중 하나가 VM-APP 까지 도달해야 함. DNS 를 직접 관리하는 도메인이면 DNS-01(포트 불필요)도 가능.
   - **표준 포트를 다른 서비스가 점유**해 공인 CA 검증이 어려우면 **사내 사설 CA**: [`deploy/certs/make-internal-ca.sh`](certs/make-internal-ca.sh) 로 CA+서버 인증서를 만들고, `ca.crt` 를 접속 PC 신뢰 저장소에 설치하면 경고가 사라집니다.
+
+---
+
+## 인증서 발급·반영·갱신 (Let's Encrypt DNS-01)
+
+표준 포트(80/443)를 다른 서비스가 점유한 환경에서는 **DNS-01**(포트 불필요)로 발급한다.
+
+### 발급 (수동 DNS-01)
+```bash
+# 💻 VM-APP — <domain>·<email> 은 실제 값으로
+sudo docker run --rm -it -v /etc/letsencrypt:/etc/letsencrypt \
+  certbot/certbot certonly --manual --preferred-challenges dns \
+  -d <domain> --agree-tos -m <email> --no-eff-email
+# → 출력된 TXT 값을 DNS 의 _acme-challenge.<label> 에 등록
+# → 권위 네임서버에 값이 보이면(아래 확인) Enter
+dig +short TXT _acme-challenge.<label>.<zone> @<권위NS>
+```
+
+> **함정 주의(실제 겪은 이슈)**
+> - **도메인이 진짜로 그 DNS 를 쓰는지 먼저 확인**: `dig +short NS <domain> @8.8.8.8`. 결과가 `emailverification.info` 류이면 **등록자 이메일 미인증으로 도메인 정지** 상태 → 먼저 **소유자(등록자) 이메일 인증**부터 해야 한다.
+> - **네거티브 캐시**: 존재하지 않을 때 조회하면 "없음"이 SOA minimum(예: 86400=24h) 동안 캐시된다. **권위 NS 에 값이 확실히 보인 뒤 Enter**. 성급히 누르면 그 이름이 24시간 잠긴다.
+
+### 반영 (nginx certs 볼륨)
+`live/` 는 `archive/` 로의 심링크라 그냥 `docker cp` 하면 깨진다 → 스크립트가 `readlink -f` 로 실파일을 복사한다.
+```bash
+sudo sh deploy/certs/apply-cert.sh <domain>     # + web 재시작
+# 확인
+echo | openssl s_client -connect localhost:443 -servername <domain> 2>/dev/null \
+  | openssl x509 -noout -issuer -subject -dates   # issuer = Let's Encrypt
+```
+HTTPS 정상 확인 후 `.env` `ENABLE_HSTS=true` 로 강화.
+
+### 갱신 (90일)
+`--manual` 인증서는 **자동 갱신되지 않는다.** 만료 전:
+```bash
+# 1) 위 '발급' 명령을 다시 실행(certbot renew 아님 — manual 은 hook 없이는 재실행) → 새 TXT 등록 → Enter
+# 2) 볼륨 반영
+sudo sh deploy/certs/apply-cert.sh <domain>
+```
+- **완전 자동화 옵션**: DNS 를 API 로 제어 가능한 공급자면 `acme.sh --dns <provider>` + install-cert 훅으로 무인 갱신. (공급자 API 키 필요)
+- 최소한 **만료일 캘린더 알림**을 걸어둘 것.
