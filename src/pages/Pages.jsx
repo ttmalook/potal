@@ -2121,19 +2121,17 @@ export function UsersAdmin({ app }) {
 }
 
 export function AuditLog() {
-  const [kind, setKind] = useState('all')
   const [rows, setRows] = useState([])
   const [status, setStatus] = useState('loading') // loading|ok|error
   useEffect(() => {
     let alive = true
     setStatus('loading')
-    fetchAudit({ kind, limit: 300 })
+    fetchAudit({ kind: 'all', limit: 300 })
       .then((d) => { if (alive) { setRows(d.items); setStatus('ok') } })
       .catch(() => { if (alive) setStatus('error') })
     return () => { alive = false }
-  }, [kind])
+  }, [])
 
-  const KIND_TABS = [{ key: 'all', label: '전체' }, { key: 'user', label: '사용자' }, { key: 'system', label: '시스템' }, { key: 'security', label: '보안' }]
   const KIND_KO = { user: '사용자', system: '시스템', security: '보안' }
   const KIND_TONE = { user: 'primary', system: 'neutral', security: 'warning' }
   const KO_ROLE = { admin: '관리자', partner: '파트너', viewer: '뷰어', system: '시스템' }
@@ -2156,14 +2154,8 @@ export function AuditLog() {
   return (
     <div className="page">
       <PageHeader title="감사 로그" desc="사용자 행위 · 보안(인증·권한 거부) · 시스템(운영/DB) 이벤트를 실제로 기록합니다." />
-      {/* 종류는 테이블 컬럼(배지)에 이미 있으므로 상단 큰 필터 박스 대신 컴팩트 인라인 필터로 정리 */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', margin: '2px 0 12px' }}>
-        <span className="field-label" style={{ marginRight: 4 }}>종류</span>
-        {KIND_TABS.map((t) => (
-          <button key={t.key} className={`btn btn-xs ${kind === t.key ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setKind(t.key)}>{t.label}</button>
-        ))}
-        <span className="hint-text" style={{ marginLeft: 'auto' }}>{status === 'ok' ? `${rows.length}건` : ''}</span>
-      </div>
+      {/* 종류는 표의 '종류' 컬럼(배지)에 표시되므로 상단 종류 필터는 두지 않는다 — 전체를 시간순으로 표시 */}
+      <div className="hint-text" style={{ textAlign: 'right', margin: '2px 0 10px' }}>{status === 'ok' ? `${rows.length}건` : ''}</div>
       {status === 'loading' ? <div className="rf-skeleton">감사 로그 불러오는 중…</div>
         : status === 'error' ? <EmptyState title="감사 로그를 불러올 수 없습니다" desc="관리자 권한이 필요합니다 (Backend 연결 확인)." />
           : rows.length ? <div className="card no-pad"><DataTable columns={columns} rows={rows} renderCell={renderCell} rowId={(r) => r.id} pageSize={15} /></div>
