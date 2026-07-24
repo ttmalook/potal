@@ -98,15 +98,29 @@ ${fontFace}
 *{box-sizing:border-box}
 body{margin:0;background:#f1f5f9;color:#0f172a;font-family:${fontStack};line-height:1.6;-webkit-font-smoothing:antialiased}
 .wrap{max-width:960px;margin:0 auto;padding:24px 20px 64px}
-.banner{background:linear-gradient(135deg,#0f2545,#1e3a63);color:#fff;border-radius:16px;padding:26px 28px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
-.banner .brand{font-size:12px;letter-spacing:.08em;font-weight:700;opacity:.8}
-.banner h1{margin:6px 0 4px;font-size:24px}
-.banner p{margin:0;opacity:.85;font-size:13px}
-.banner code{background:rgba(255,255,255,.12);padding:1px 7px;border-radius:6px;font-size:12px}
-.score{background:rgba(255,255,255,.1);border-radius:12px;padding:14px 20px;text-align:center;min-width:120px}
-.score .lbl{font-size:11px;opacity:.8;display:block;margin-bottom:6px}
-.score .val{font-size:34px;font-weight:800;line-height:1}
-.score .grade{font-size:15px;font-weight:700;margin-left:6px;vertical-align:super}
+/* ── 표지(마스트헤드) ── */
+.masthead{position:relative;overflow:hidden;background:#fff;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:64px 8vw;border-bottom:1px solid #eef2f7}
+.deco{position:absolute;inset:0;pointer-events:none;z-index:0}
+.sh{position:absolute}
+.sh.dot{border-radius:50%}
+.sh.ring{border-radius:50%;background:transparent}
+.sh.q{border-top-left-radius:100%}
+.sh.half{border-radius:100% 100% 0 0}
+.mast-inner{position:relative;z-index:1;max-width:640px}
+.mast-eyebrow{font-size:12.5px;letter-spacing:.16em;font-weight:800;color:#e07a7a;text-transform:uppercase}
+.mast-title{font-size:64px;line-height:1.02;font-weight:800;letter-spacing:-.01em;color:#17233f;margin:16px 0 0}
+.mast-rule{width:88px;height:6px;border-radius:3px;background:#17233f;margin:26px 0 30px}
+.mast-score{display:flex;align-items:center;gap:18px;margin-bottom:44px}
+.mast-grade{width:92px;height:92px;border-radius:50%;border:6px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:800;flex-shrink:0}
+.mast-score-meta{display:flex;flex-direction:column}
+.mast-score-meta span{font-size:12.5px;color:#64748b;letter-spacing:.02em}
+.mast-score-meta b{font-size:26px;color:#17233f;font-variant-numeric:tabular-nums;line-height:1.2}
+.mast-meta{display:flex;gap:40px;flex-wrap:wrap;border-top:1px solid #eef2f7;padding-top:22px}
+.mast-meta div{display:flex;flex-direction:column;gap:3px}
+.mast-meta span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;font-weight:700}
+.mast-meta b{font-size:15px;color:#17233f}
+.mast-meta code{font-size:14px;background:#f1f5f9;padding:1px 8px;border-radius:6px}
+@media(max-width:640px){.mast-title{font-size:42px}.masthead{padding:48px 32px}}
 .notice{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:14px 16px;margin:18px 0;font-size:13px;color:#92400e}
 .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px 22px;margin-top:16px}
 .card h3{margin:0 0 4px;font-size:16px}
@@ -158,6 +172,8 @@ table.diff tr.changed{background:#fafcff}
 @media print{
   body{background:#fff}
   .wrap{max-width:100%;padding:0}
+  #masthead{display:flex !important;min-height:auto;height:100vh;break-after:page;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #overview{display:block !important;break-after:page}
   table.pri td.go{display:none}
   .item{display:block !important;break-before:page}
   .item .back{display:none}
@@ -166,23 +182,39 @@ table.diff tr.changed{background:#fafcff}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="banner">
-    <div>
-      <div class="brand">SSC 파트너 · 보안 리스크 리포트</div>
-      <h1>${esc(d.customer)}</h1>
-      <p>대상 도메인 <code>${esc(d.shownDomain || d.domain)}</code> · 발행일 ${esc(d.generatedAt)}</p>
+<section class="masthead" id="masthead">
+  <div class="deco">
+    <span class="sh q"    style="width:190px;height:190px;background:#f7a6a6;top:-30px;right:8%"></span>
+    <span class="sh ring" style="width:150px;height:150px;border:14px solid #7cc3e6;top:60px;right:26%"></span>
+    <span class="sh dot"  style="width:46px;height:46px;background:#f4c95d;top:150px;right:6%"></span>
+    <span class="sh half" style="width:130px;height:65px;background:#8ed6a9;top:12px;right:20%"></span>
+    <span class="sh dot"  style="width:30px;height:30px;background:#f7a6a6;top:210px;right:30%"></span>
+    <span class="sh ring" style="width:96px;height:96px;border:12px solid #f4c95d;bottom:70px;left:-28px"></span>
+    <span class="sh q"    style="width:120px;height:120px;background:#7cc3e6;transform:rotate(180deg);bottom:-24px;right:10%"></span>
+    <span class="sh dot"  style="width:22px;height:22px;background:#8ed6a9;bottom:130px;left:12%"></span>
+  </div>
+  <div class="mast-inner">
+    <div class="mast-eyebrow">SecurityScorecard 파트너 · 보안 리스크 리포트</div>
+    <h1 class="mast-title">보안 리스크<br/>리포트</h1>
+    <div class="mast-rule"></div>
+    <div class="mast-score">
+      <div class="mast-grade" style="color:${gc}">${d.grade ? esc(d.grade) : '—'}</div>
+      <div class="mast-score-meta">
+        <span>SecurityScorecard 보안등급</span>
+        <b>${d.score != null ? esc(d.score) : '—'} <span style="font-size:15px;color:#94a3b8">/ 100</span></b>
+      </div>
     </div>
-    <div class="score">
-      <span class="lbl">SecurityScorecard 보안등급</span>
-      <span class="val" style="color:${gc}">${d.score != null ? esc(d.score) : '—'}</span>
-      ${d.grade ? `<span class="grade" style="color:${gc}">${esc(d.grade)}</span>` : ''}
+    <div class="mast-meta">
+      <div><span>고객사</span><b>${esc(d.customer)}</b></div>
+      <div><span>대상 도메인</span><b><code>${esc(d.shownDomain || d.domain)}</code></b></div>
+      <div><span>발행일</span><b>${esc(d.generatedAt)}</b></div>
     </div>
   </div>
-
+</section>
+<div class="wrap">
   <div class="notice">파트너 표준 검증랩 증적은 귀사 운영환경의 조치 완료를 의미하지 않습니다. 실제 Finding 해소 여부는 SecurityScorecard 재스캔 또는 공식 검증 절차를 통해 확인해야 합니다.</div>
 
-  <div id="cover" class="card">
+  <div id="overview" class="card">
     <h3>조치 우선순위</h3>
     <p class="sub">총 ${items.length}개 유형 · 위험도·점수 개선 순 · 유형을 클릭하면 조치/증적을 봅니다</p>
     ${items.length
@@ -198,13 +230,13 @@ table.diff tr.changed{background:#fafcff}
 </div>
 <script>
 (function(){
-  var cover=document.getElementById('cover'), detail=document.getElementById('detail');
+  var masthead=document.getElementById('masthead'), overview=document.getElementById('overview'), detail=document.getElementById('detail');
   var items=Array.prototype.slice.call(document.querySelectorAll('.item'));
   function show(key){
-    if(key==='__cover__'){ cover.style.display=''; detail.style.display='none'; items.forEach(function(s){s.classList.remove('active')}); window.scrollTo(0,0); return; }
+    if(key==='__cover__'){ masthead.style.display=''; overview.style.display=''; detail.style.display='none'; items.forEach(function(s){s.classList.remove('active')}); window.scrollTo(0,0); return; }
     var found=false;
     items.forEach(function(s){ var on=s.getAttribute('data-key')===key; s.classList.toggle('active',on); if(on)found=true; });
-    cover.style.display='none'; detail.style.display=found?'':'none'; window.scrollTo(0,0);
+    masthead.style.display='none'; overview.style.display='none'; detail.style.display=found?'':'none'; window.scrollTo(0,0);
   }
   document.querySelectorAll('[data-goto]').forEach(function(el){ el.addEventListener('click',function(){ show(el.getAttribute('data-goto')); }); });
   show('__cover__');
