@@ -1866,7 +1866,7 @@ export function DeliveryReportViewer({ custName, app }) {
     && (hostOfDom(p.sscLookupDomain || p.domain) === hostOfDom(scoreDomain) || p.customer === custName))
   const copyShareLink = (pack) => {
     let t = pack.shareToken
-    if (!t) { const f = newShareFields(); t = f.shareToken; app?.updateEvidencePack?.(pack.id, f) }
+    if (!t) { const f = newShareFields(); t = f.shareToken; app?.updateEvidencePack?.(pack.id, { ...f, publish: 'Published' }) }
     const url = `${location.origin}${location.pathname}#share=${t}`
     const done = () => setToast({ tone: 'success', text: '클립보드에 복사됨 — 고객 게시 링크(30일 유효, 로그인 없이 이 팩만 열람)' })
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(() => setToast({ tone: 'warning', text: `복사 실패 — 링크: ${url}` }))

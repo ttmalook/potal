@@ -804,8 +804,9 @@ app.get('/api/public/shared/:token', rateLimit({ windowMs: 60000, max: 30 }), as
   const token = req.params.token
   if (!token) return res.status(400).json({ ok: false, message: 'token required' })
   const packs = await portal.getEvidencePacks()
-  const pack = (packs || []).find((p) => p.shareToken === token && p.publish === '발행됨')
-  if (!pack) return res.status(404).json({ ok: false, message: 'shared pack not found or not published' })
+  // 공유 토큰(30일 만료·추측불가)이 곧 열람 권한. 전달에서 제외된 팩은 차단.
+  const pack = (packs || []).find((p) => p.shareToken === token && p.excluded !== true)
+  if (!pack) return res.status(404).json({ ok: false, message: 'shared pack not found' })
   // 만료 링크 차단 (폐기·기간 만료)
   if (pack.shareExpiresAt && Date.now() > Date.parse(pack.shareExpiresAt)) return res.status(410).json({ ok: false, errorCode: 'LINK_EXPIRED', message: '만료된 링크입니다.' })
   // 조회 = 고객 열람으로 간주 (공개 뷰는 별도 write 불필요)
