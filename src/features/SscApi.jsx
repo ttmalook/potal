@@ -132,8 +132,9 @@ export function RiskFindingsRealPanel({ presetDomain = null, context = null, onF
       //  · reset(첫 수집)일 때만. 등록 기본값 'SSC Import 대기' → 실측 상태로 갱신.
       if (reset && context?.domainId && app?.updateDomain) {
         const total = typeof d.summary?.total === 'number' ? d.summary.total : merged.length
+        const typeCount = (d.issueTypeSummary || []).length // 이슈 유형 수(종) — 배지 표기 기준
         const row = (app.domains || []).find((x) => x.id === context.domainId)
-        if (row) app.updateDomain({ ...row, status: total > 0 ? '리스크 수집됨' : '수집됨 · Finding 없음', riskCount: total, lastCollectedAt: new Date().toISOString().slice(0, 10) })
+        if (row) app.updateDomain({ ...row, status: total > 0 ? '리스크 수집됨' : '수집됨 · Finding 없음', riskCount: total, riskTypeCount: typeCount, lastCollectedAt: new Date().toISOString().slice(0, 10) })
       }
     } catch (e) {
       const code = e.payload?.errorCode
@@ -168,7 +169,7 @@ export function RiskFindingsRealPanel({ presetDomain = null, context = null, onF
       title: `${context?.customer || baseDomain} — 도메인 종합 증적 (${issues.length}개 유형)`,
       customer: context?.customer || '—',
       domain: baseDomain,
-      riskCount: issues.reduce((s, i) => s + (i.count ?? i.assets.length), 0),
+      riskCount: issues.length, // 유형 수(종) — 종합 증적은 유형 단위
       created: new Date().toISOString().slice(0, 10),
       review: '검수 중',
       publish: '초안',
@@ -420,7 +421,7 @@ function TypeRemediationDrawer({ item, findings = [], context, app, onClose }) {
       customer: context?.customer || '—',
       industry: app?.customers?.find((c) => c.name === context?.customer)?.industry || null,
       domain: context?.sscLookupDomain || '—',
-      riskCount: findings.length,
+      riskCount: 1, // 단일 유형 팩 — 유형 수(종) 기준
       created: new Date().toISOString().slice(0, 10),
       review: '검수 중',
       publish: '초안',

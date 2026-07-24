@@ -76,6 +76,8 @@ function LegalFooter() {
 // ---------------------------------------------------------------------
 const DASH_KIND_KO = { user: '사용자', system: '시스템', security: '보안' }
 const dashHM = (ts) => { try { return new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) } catch { return '' } }
+// 상태 배지 표기 — 이슈 유형 수(종) 기준. 구 데이터(유형 수 없음)는 finding 건수로 폴백.
+const riskUnit = (row) => (row.riskTypeCount != null ? `${row.riskTypeCount}종` : `${row.riskCount}건`)
 
 const DB_SEV = [
   { key: 'critical', ko: 'Critical', color: '#dc2626' },
@@ -551,7 +553,7 @@ export function Domains({ app }) {
         </div>
       )
     if (key === 'consent') return <StatusBadge status={row.consent} />
-    if (key === 'status') return <span className="status-cell"><StatusBadge status={row.status} />{row.riskCount != null && <span className="muted-cell"> · {row.riskCount}건{row.lastCollectedAt ? ` · ${row.lastCollectedAt}` : ''}</span>}</span>
+    if (key === 'status') return <span className="status-cell"><StatusBadge status={row.status} />{row.riskCount != null && <span className="muted-cell"> · {riskUnit(row)}{row.lastCollectedAt ? ` · ${row.lastCollectedAt}` : ''}</span>}</span>
     return row[key]
   }
   return (
@@ -622,7 +624,7 @@ function DomainDetailDrawer({ row, canWrite, onClose, onEdit, onDelete }) {
         <div><span>SSC 조회 기준</span><b>{row.sscLookupDomain || (row.primary || '').split(':')[0]}</b></div>
         <div><span>접속 검증 URL</span><b>{row.accessUrl || row.baseUrl || '—'}</b></div>
         <div><span>점검 동의</span><b><StatusBadge status={row.consent} /></b></div>
-        <div><span>수집 상태</span><b><StatusBadge status={row.status} />{row.riskCount != null && <span className="muted-cell"> · 리스크 {row.riskCount}건</span>}</b></div>
+        <div><span>수집 상태</span><b><StatusBadge status={row.status} />{row.riskCount != null && <span className="muted-cell"> · 리스크 {riskUnit(row)}</span>}</b></div>
         {row.lastCollectedAt && <div><span>최근 수집</span><b>{row.lastCollectedAt}</b></div>}
       </div>
 
@@ -1230,7 +1232,7 @@ function endpointListConfig(domains = []) {
   const renderCell = (key, row) => {
     if (key === 'serviceEndpoint') return <span><code className="inline-code">{domEndpoint(row)}</code>{row.port && <span className="badge badge-soft badge-purple new-tag">:{row.port}</span>}</span>
     if (key === 'sscLookupDomain') return <code className="inline-code sm">{domLookup(row)}</code>
-    if (key === 'status') return <span className="status-cell"><StatusBadge status={row.status} />{row.riskCount != null && <span className="muted-cell"> · {row.riskCount}건</span>}</span>
+    if (key === 'status') return <span className="status-cell"><StatusBadge status={row.status} />{row.riskCount != null && <span className="muted-cell"> · {riskUnit(row)}</span>}</span>
     return row[key]
   }
   return { filterFields, columns, renderCell }
@@ -1689,7 +1691,7 @@ export function EvidencePacks({ app }) {
             {selected.excluded === true
               ? <span className="badge badge-soft badge-neutral">전달 제외</span>
               : <span className="badge badge-soft badge-success">전달 포함</span>}
-            <span className="badge badge-soft badge-neutral">리스크 {selected.riskCount}건</span>
+            <span className="badge badge-soft badge-neutral">리스크 {selected.riskCount}종</span>
             {selected.source === 'lab' && <TagBadge tone="purple">검증랩 증적</TagBadge>}
             {selected.source === 'guide' && <TagBadge tone="neutral">조치 권고</TagBadge>}
           </>}
