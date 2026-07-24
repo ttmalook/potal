@@ -1324,8 +1324,11 @@ function EndpointGuideDrawer({ row, app, onClose }) {
   //  → 카탈로그 키를 모두 canonical 화한 집합으로 비교(양쪽 정규화).
   const LAB_KEYS = new Set(catalogGroups().flatMap((g) => g.items.map((it) => canonicalIssueKey(it.key))))
   const isLabSupported = (k) => LAB_KEYS.has(canonicalIssueKey(k))
-  const scopedRows = scopeKeys ? rowsAll.filter((g) => scopeKeys.has(canonicalIssueKey(g.key)) && !isLabSupported(g.key)) : []
-  const labSupportedCount = scopeKeys ? [...scopeKeys].filter((k) => rowsAll.some((g) => canonicalIssueKey(g.key) === k) && isLabSupported(k)).length : 0
+  // 스코프의 '검증랩 미지원' 유형 전부를 가이드로 표시(가이드 카탈로그에 없어도 guideRowMeta 폴백). 대표 key 중복 제거.
+  const scopedRows = scopeKeys
+    ? Object.values([...scopeKeys].filter((k) => !isLabSupported(k)).map((k) => guideRowMeta(k)).reduce((acc, r) => { if (r?.key && !acc[r.key]) acc[r.key] = r; return acc }, {}))
+    : []
+  const labSupportedCount = scopeKeys ? [...scopeKeys].filter((k) => isLabSupported(k)).length : 0
   const filterFields = [
     { key: 'category', label: '분류', type: 'select', options: uniq(rowsAll.map((g) => g.category)) },
     { key: 'severity', label: '위험도', type: 'select', options: uniq(rowsAll.map((g) => g.severity)) },

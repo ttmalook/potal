@@ -106,7 +106,7 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
     setFindStatus('loading')
     try {
       const d = await collectRiskFindings(ep.sscLookupDomain, { limit: 20, offset: 0, includeInfo: false })
-      const list = d.findings || []
+      const list = d.issueTypeSummary || d.findings || [] // 전체 유형 목록 사용(finding 페이지네이션에 유형이 누락되지 않도록)
       setFindings(list)
       const pick = focusIssueType ? list.find((x) => x.issue_type === focusIssueType) : null
       setFindingKey((pick || list[0])?.issue_type || '')
@@ -124,7 +124,7 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
     setFindStatus('loading')
     try {
       const d = await collectRiskFindings(endpoint.sscLookupDomain, { limit: 20, offset: 0, includeInfo: false })
-      const list = d.findings || []
+      const list = d.issueTypeSummary || d.findings || [] // 전체 유형 목록 사용(finding 페이지네이션에 유형이 누락되지 않도록)
       setFindings(list)
       const pick = focusIssueType ? list.find((x) => x.issue_type === focusIssueType) : null
       setFindingKey((pick || list[0])?.issue_type || '')
