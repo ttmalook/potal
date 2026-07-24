@@ -87,6 +87,61 @@ server {
 }`
     },
     verify: ['curl -sIL http://<대상> 로 리다이렉트 체인 확인 (평문 HTTP 홉이 없어야 함)']
+  },
+  redirect_chain_contains_http: {
+    why: 'HTTPS로 시작한 요청이 리다이렉트 체인 중간에 평문 HTTP 홉을 거치면 그 구간에서 도청·세션 탈취·다운그레이드가 가능합니다. 리다이렉트의 모든 단계를 HTTPS로 유지해야 합니다.',
+    steps: [
+      '리다이렉트 체인을 확인합니다: curl -sIL http://<대상> (Location 헤더의 모든 홉 점검).',
+      '중간에 http:// 로 가는 홉을 https:// 로 교체합니다(웹서버·앱·CDN 리다이렉트 규칙).',
+      '첫 진입도 http→https(301)로 강제하고, 최종 목적지가 https 인지 확인합니다.',
+      'HSTS(Strict-Transport-Security)를 적용해 브라우저가 https 를 고정하게 합니다.',
+      '배포 후 SSC 재스캔으로 해소를 확인합니다.'
+    ],
+    verify: ['curl -sIL http://<대상> 응답의 모든 Location 이 https 인지 확인']
+  },
+  hosted_on_object_storage: {
+    why: '웹 자산이 오브젝트 스토리지(S3·GCS·Blob 등)에 직접 호스팅되면, 버킷 권한이 잘못 설정될 경우 파일이 공개 노출·목록화·변조될 수 있습니다. 공개 접근을 차단하고 CDN·서명 URL 경유로 제공해야 합니다.',
+    steps: [
+      '해당 버킷의 퍼블릭 액세스 차단(Block Public Access)을 활성화합니다.',
+      '버킷 정책·ACL을 최소 권한으로 정리하고 익명 읽기를 제거합니다.',
+      '공개가 필요한 자산은 CDN(CloudFront 등) + OAI/서명 URL 로만 노출합니다.',
+      '버킷 로깅·버전 관리·서버측 암호화(SSE)를 활성화합니다.',
+      '배포 후 SSC 재스캔으로 확인합니다.'
+    ],
+    verify: ['버킷 URL 직접 접근 시 AccessDenied · 목록 조회 차단 확인']
+  },
+  compromised_credentials_found: {
+    why: '이 도메인과 연관된 계정·비밀번호가 외부 유출 데이터에서 발견되었습니다. 방치하면 계정 탈취·크리덴셜 스터핑으로 이어질 수 있어, 해당 자격증명을 즉시 무효화하고 다중인증을 강제해야 합니다.',
+    steps: [
+      '유출된 계정의 비밀번호를 즉시 재설정하고 활성 세션을 폐기합니다.',
+      '전 계정에 다중인증(MFA)을 강제하고 비밀번호 재사용을 차단합니다.',
+      '유출 비밀번호 사전(HIBP 등) 대조로 재사용 여부를 점검합니다.',
+      '해당 계정의 최근 접근·이상 로그인을 조사합니다.',
+      '유출 모니터링을 설정하고 SSC 재스캔으로 확인합니다.'
+    ],
+    verify: ['해당 계정 로그인 시 MFA 요구 및 이전 비밀번호 거부 확인']
+  },
+  service_pop3: {
+    why: 'POP3(110/평문) 서비스가 외부에 노출되면 자격증명이 평문으로 오가고 무차별 대입 공격의 표적이 됩니다. 불필요하면 비활성화하고, 필요하면 암호화(POP3S/995)와 접근 제한만 허용해야 합니다.',
+    steps: [
+      'POP3 서비스의 필요성을 검토합니다(대부분 IMAP/웹메일로 대체 가능).',
+      '불필요하면 서비스를 중지하고 110 포트를 차단합니다.',
+      '필요하면 평문 POP3를 끄고 POP3S(995/TLS)만 허용합니다.',
+      '방화벽으로 접근 출발지를 최소 범위로 제한합니다.',
+      '배포 후 SSC 재스캔으로 확인합니다.'
+    ],
+    verify: ['nmap -p110,995 <대상> — 110 미개방 · 995(TLS)만 확인']
+  },
+  service_vuln_host_v3_medium: {
+    why: '알려진 취약점(CVE)이 있는 소프트웨어·서비스 버전이 외부에서 관측되었습니다. 공개 익스플로잇 대상이 될 수 있어, 해당 컴포넌트를 패치·업그레이드하고 불필요한 노출을 제거해야 합니다.',
+    steps: [
+      'SSC 관측값에서 취약 컴포넌트·버전을 확인합니다.',
+      '해당 소프트웨어/OS를 보안 패치·최신 버전으로 업그레이드합니다.',
+      '불필요한 서비스·포트는 비활성화하고 노출을 제거합니다.',
+      '정기 패치 관리 체계(취약점 스캔·업데이트 주기)를 수립합니다.',
+      '배포 후 SSC 재스캔으로 확인합니다.'
+    ],
+    verify: ['업그레이드 후 버전 배너·스캐너로 해당 CVE 미해당 확인']
   }
 }
 
@@ -150,7 +205,12 @@ export const GUIDE_TYPE_META = {
   unsafe_sri: { severity: 'medium', category: 'HTTP/Web Header', difficulty: '중간', impact: '중간' },
   x_content_type_options_incorrect: { severity: 'low', category: 'HTTP/Web Header', difficulty: '낮음', impact: '낮음' },
   domain_missing_https: { severity: 'high', category: 'TLS/Certificate', difficulty: '중간', impact: '높음' },
-  insecure_https_redirect_pattern: { severity: 'medium', category: 'TLS/Certificate', difficulty: '낮음', impact: '중간' }
+  insecure_https_redirect_pattern: { severity: 'medium', category: 'TLS/Certificate', difficulty: '낮음', impact: '중간' },
+  redirect_chain_contains_http: { severity: 'medium', category: 'TLS/Certificate', difficulty: '낮음', impact: '중간' },
+  hosted_on_object_storage: { severity: 'low', category: '정보보호 일반', difficulty: '중간', impact: '중간' },
+  compromised_credentials_found: { severity: 'low', category: '계정 보안', difficulty: '중간', impact: '높음' },
+  service_pop3: { severity: 'medium', category: '네트워크 보안', difficulty: '중간', impact: '중간' },
+  service_vuln_host_v3_medium: { severity: 'low', category: '패치 관리', difficulty: '중간', impact: '높음' }
 }
 
 // 조치 가이드 행(row) 메타 — 카탈로그 + GUIDE_TYPE_META 병합. 표/드로어 공용.
