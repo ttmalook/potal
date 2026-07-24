@@ -77,6 +77,14 @@ function LegalFooter() {
 const DASH_KIND_KO = { user: '사용자', system: '시스템', security: '보안' }
 const dashHM = (ts) => { try { return new Date(ts).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false }) } catch { return '' } }
 
+const DB_SEV = [
+  { key: 'critical', ko: 'Critical', color: '#dc2626' },
+  { key: 'high', ko: 'High', color: '#ea580c' },
+  { key: 'medium', ko: 'Medium', color: '#f59e0b' },
+  { key: 'low', ko: 'Low', color: '#3b82f6' }
+]
+const dbGrade = (n) => n == null ? '—' : n >= 90 ? 'A' : n >= 80 ? 'B' : n >= 70 ? 'C' : n >= 60 ? 'D' : 'F'
+
 export function Dashboard({ app }) {
   const { navigate } = app
   // 실집계: 등록 고객·도메인·증적 팩(백엔드 실데이터)
@@ -85,18 +93,46 @@ export function Dashboard({ app }) {
   const packs = app.evidencePacks || []
   const included = packs.filter((p) => p.excluded !== true)
   const bySource = (s) => packs.filter((p) => p.source === s).length
-  const stats = [
-    { key: 'customers', label: '등록 고객 수', value: customers.length, unit: '개사', tone: 'primary' },
-    { key: 'domains', label: '등록 도메인 수', value: domains.length, unit: '개', tone: 'primary' },
-    { key: 'evidenceAll', label: '증적 팩 (전체)', value: packs.length, unit: '건', tone: 'primary' },
-    { key: 'evidenceReady', label: '전달 포함 증적 팩', value: included.length, unit: '건', tone: 'success' }
+
+  const kpis = [
+    { key: 'customers', label: '등록 고객사', value: customers.length, unit: '개사', nav: 'customers', delta: null },
+    { key: 'domains', label: '등록 도메인', value: domains.length, unit: '개', nav: 'domains', delta: null },
+    { key: 'packs', label: '증적 팩', value: packs.length, unit: '건', nav: 'packs', delta: null },
+    { key: 'included', label: '전달 포함', value: included.length, unit: '건', nav: 'customer-view', delta: `제외 ${packs.length - included.length}` }
   ]
-  const queues = [
-    { key: 'toDeliver', label: '전달 포함 증적 팩', count: included.length, tone: 'success', desc: '고객 전달 화면에 노출되는 팩', hint: '고객 전달 화면', nav: 'customer-view' },
-    { key: 'excluded', label: '전달 제외 증적 팩', count: packs.length - included.length, tone: 'neutral', desc: '전달에서 제외된 팩(내부 보관)', hint: '증적 팩', nav: 'packs' },
-    { key: 'lab', label: '검증랩 참고 증적', count: bySource('lab'), tone: 'purple', desc: '검증랩에서 수집한 조치 전·후 증적', hint: '증적 팩', nav: 'packs' },
-    { key: 'guide', label: '조치 권고 (가이드)', count: bySource('guide'), tone: 'warning', desc: '일반 조치 권고 가이드 팩', hint: '조치 가이드', nav: 'guides' }
+
+  // 이슈 위험도 분포 — 증적 팩의 issue_type severity 실집계
+  const sevCount = { critical: 0, high: 0, medium: 0, low: 0 }
+  packs.forEach((p) => { const s = guideRowMeta(p.issueType)?.severity; if (s && sevCount[s] != null) sevCount[s]++ })
+  const sevTotal = Object.values(sevCount).reduce((a, b) => a + b, 0)
+  let acc = 0
+  const donutStops = DB_SEV.map((s) => { const from = acc; acc += sevTotal ? sevCount[s.key] / sevTotal : 0; return `${s.color} ${(from * 100).toFixed(1)}% ${(acc * 100).toFixed(1)}%` }).join(', ')
+
+  // 운영 파이프라인 — 단계별 실카운트
+  const pipeline = [
+    { nm: '고객사', v: customers.length, nav: 'customers' },
+    { nm: '도메인', v: domains.length, nav: 'domains' },
+    { nm: '검증랩 증적', v: bySource('lab'), nav: 'packs' },
+    { nm: '증적 팩', v: packs.length, nav: 'packs' },
+    { nm: '전달 포함', v: included.length, nav: 'customer-view' }
   ]
+  const pipeMax = Math.max(1, ...pipeline.map((p) => p.v))
+
+  // SSC 보안등급 — 고객사 대표 도메인 점수(sscScore 공유 캐시)
+  const custDomain = (c) => { const d = domains.find((x) => x.customer === c.name); return d?.sscLookupDomain || d?.serviceEndpoint || null }
+  const [scores, setScores] = useState({})
+  useEffect(() => {
+    let alive = true
+    Promise.all(customers.map(async (c) => {
+      const dom = custDomain(c)
+      if (!dom) return [c.name, null]
+      try { return [c.name, await getScore(dom)] } catch { return [c.name, null] }
+    })).then((entries) => { if (alive) setScores(Object.fromEntries(entries)) })
+    return () => { alive = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customers.length, domains.length])
+  const gradeColorOf = (sc) => sc == null ? '#cbd5e1' : sc >= 80 ? '#16a34a' : sc >= 60 ? '#f59e0b' : '#dc2626'
+
   // 최근 활동: 실제 감사 로그(사용자·시스템·보안). 관리자만 조회 가능 → 실패 시 안내.
   const [activity, setActivity] = useState([])
   const [actStatus, setActStatus] = useState('loading')
@@ -106,11 +142,9 @@ export function Dashboard({ app }) {
       .then((d) => {
         if (!alive) return
         const items = (d.items || []).map((e) => ({
-          time: dashHM(e.ts),
-          actor: e.actor || 'system',
-          role: DASH_KIND_KO[e.kind] || e.kind,
-          text: e.action + (e.target ? ` · ${e.target}` : ''),
-          tone: (e.result === 'Denied' || e.result === 'Failed' || e.result === 'Fallback') ? 'warning' : (e.kind === 'system' ? 'neutral' : 'primary')
+          time: dashHM(e.ts), kind: e.kind, kindKo: DASH_KIND_KO[e.kind] || e.kind,
+          actor: e.actor || 'system', target: e.target,
+          text: e.action
         }))
         setActivity(items)
         setActStatus(items.length ? 'ok' : 'empty')
@@ -118,69 +152,112 @@ export function Dashboard({ app }) {
       .catch(() => { if (alive) setActStatus('error') })
     return () => { alive = false }
   }, [])
+
   return (
-    <div className="page">
-      <PageHeader
-        title="대시보드"
-        desc="외부 관측 리스크부터 고객 전달 및 SSC 재스캔까지의 파트너 운영 흐름을 요약합니다."
-      />
+    <div className="page dashboard">
+      <PageHeader title="대시보드" />
 
-      {/* 전체 운영 프로세스 (10단계) */}
-      <div className="card process-card">
-        <SectionTitle
-          kicker="운영 흐름"
-          title="전체 운영 프로세스"
-          action={<span className="hint-text">고객사 등록 → 고객 전달 → SSC 재스캔/공식 검증</span>}
-        />
-        <div className="process-flow">
-          {data.processFlow.map((p, i) => (
-            <React.Fragment key={p.step}>
-              <button className="process-step" onClick={() => navigate(p.nav)} title={p.desc}>
-                <div className="process-icon"><Icon name={PROC_ICON[p.step] || p.nav} size={22} /></div>
-                <div className="process-label">{p.label}</div>
-              </button>
-              {i < data.processFlow.length - 1 && <span className="process-arrow">→</span>}
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
-
-      <SectionTitle
-        kicker="핵심 지표"
-        title="운영 지표 요약"
-        action={<span className="hint-text">등록·증적 데이터 기준 실집계</span>}
-      />
-      <div className="stat-grid">
-        {stats.map(({ key, ...s }) => (
-          <StatCard key={key} icon={<Icon name={STAT_ICON[key] || 'dashboard'} size={19} />} {...s} />
+      {/* KPI */}
+      <div className="db-kpis">
+        {kpis.map((k) => (
+          <button key={k.key} className="db-card db-kpi" onClick={() => navigate(k.nav)}>
+            <div className="db-kpi-k">{k.label}</div>
+            <div className="db-kpi-v">{k.value}<small>{k.unit}</small></div>
+            {k.delta && <div className="db-kpi-d">{k.delta}</div>}
+          </button>
         ))}
       </div>
 
-      <div className="dash-cols">
-        <div className="dash-main">
-          <SectionTitle kicker="증적 팩 현황" title="증적 팩 현황" action={<span className="hint-text">현재 등록된 증적 팩 실집계</span>} />
-          <div className="queue-grid">
-            {queues.map((q) => (
-              <button key={q.key} className="queue-card" onClick={() => navigate(q.nav)}>
-                <div className="queue-top">
-                  <span className="queue-label">{q.label}</span>
-                  <span className={`badge badge-soft badge-${q.tone} queue-pill`}>{q.count}건</span>
+      {/* row 2: SSC 등급 · 위험도 · 파이프라인 */}
+      <div className="db-row2">
+        <div className="db-card">
+          <div className="db-ttl"><h3>SSC 보안등급</h3><span className="db-cap">고객사별</span></div>
+          <div className="db-grades">
+            {customers.length ? customers.map((c) => {
+              const s = scores[c.name]
+              const loading = s === undefined
+              const gr = s?.grade || (s?.score != null ? dbGrade(s.score) : null)
+              return (
+                <div key={c.id || c.name} className="db-grade-row">
+                  <span className="db-grade-badge" style={{ background: gradeColorOf(s?.score) }}>{loading ? '…' : (gr || '—')}</span>
+                  <div className="db-grade-info"><b>{c.name}</b><span>{custDomain(c) || '—'}</span></div>
+                  <span className="db-grade-score">{s?.score != null ? s.score : '—'}<small>점</small></span>
                 </div>
-                <div className="queue-desc">{q.desc}</div>
-                <div className="queue-hint">↳ {q.hint}</div>
+              )
+            }) : <EmptyState title="등록 고객사 없음" desc="고객사를 등록하면 등급이 표시됩니다." />}
+          </div>
+        </div>
+
+        <div className="db-card">
+          <div className="db-ttl"><h3>이슈 위험도 분포</h3><span className="db-cap">증적 {sevTotal}건</span></div>
+          <div className="db-donut-wrap">
+            <div className="db-donut" style={{ background: sevTotal ? `conic-gradient(${donutStops})` : '#eceff3' }}>
+              <div className="db-donut-h"><b>{sevTotal}</b><span>총 이슈</span></div>
+            </div>
+            <div className="db-leg">
+              {DB_SEV.map((s) => (
+                <div key={s.key} className="db-li"><span className="db-sw" style={{ background: s.color }} /><span className="db-nm">{s.ko}</span><span className="db-ct">{sevCount[s.key]}</span></div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="db-card">
+          <div className="db-ttl"><h3>운영 파이프라인</h3><span className="db-cap">단계별 진행</span></div>
+          <div className="db-funnel">
+            {pipeline.map((p) => (
+              <button key={p.nm} className="db-fn" onClick={() => navigate(p.nav)}>
+                <span className="db-fn-n">{p.nm}</span>
+                <span className="db-fn-track"><i style={{ width: `${Math.max(6, (p.v / pipeMax) * 100)}%` }} /></span>
+                <span className="db-fn-v">{p.v}</span>
               </button>
             ))}
           </div>
         </div>
+      </div>
 
-        <div className="dash-side">
-          <SectionTitle kicker="최근 활동" title="최근 활동" action={<span className="hint-text">감사 로그</span>} />
-          <div className="card">
-            {actStatus === 'ok' && <ActivityLog items={activity} />}
-            {actStatus === 'loading' && <p className="hint-text" style={{ padding: 12 }}>불러오는 중…</p>}
-            {actStatus === 'empty' && <EmptyState title="최근 활동 없음" desc="사용자·시스템·보안 이벤트가 기록되면 표시됩니다." />}
-            {actStatus === 'error' && <EmptyState title="활동 내역을 불러올 수 없음" desc="관리자 권한이 필요하거나 서버에 연결할 수 없습니다." />}
-          </div>
+      {/* row 3: 고객사별 요약 · 최근 활동 */}
+      <div className="db-row3">
+        <div className="db-card">
+          <div className="db-ttl"><h3>고객사별 리스크 요약</h3><span className="db-cap">SSC 등급 · 증적</span></div>
+          {customers.length ? (
+            <table className="db-table">
+              <thead><tr><th>고객사</th><th>대상 도메인</th><th>보안등급</th><th>검증랩 증적</th><th>증적 팩</th></tr></thead>
+              <tbody>
+                {customers.map((c) => {
+                  const cd = custDomain(c)
+                  const cp = packs.filter((p) => (cd && (p.sscLookupDomain === cd || p.domain === cd)) || p.customer === c.name)
+                  return (
+                    <tr key={c.id || c.name}>
+                      <td><b>{c.name}</b></td>
+                      <td className="db-mono">{custDomain(c) || '—'}</td>
+                      <td><ScoreBadge score={scores[c.name]?.score} grade={scores[c.name]?.grade} loading={scores[c.name] === undefined} /></td>
+                      <td>{cp.filter((p) => p.source === 'lab').length}</td>
+                      <td>{cp.length}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          ) : <EmptyState title="등록 고객사 없음" desc="고객사를 등록하면 요약이 표시됩니다." />}
+        </div>
+
+        <div className="db-card">
+          <div className="db-ttl"><h3>최근 활동</h3><span className="db-cap">감사 로그</span></div>
+          {actStatus === 'ok' && (
+            <div className="db-feed">
+              {activity.map((e, i) => (
+                <div key={i} className="db-ev">
+                  <span className={`db-ev-ic db-k-${e.kind}`}>{e.kindKo}</span>
+                  <div className="db-ev-tx"><b>{e.text}</b>{e.target && <div className="db-ev-mt">{e.target}</div>}<div className="db-ev-mt">{e.actor}</div></div>
+                  <span className="db-ev-tm">{e.time}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {actStatus === 'loading' && <p className="hint-text" style={{ padding: 12 }}>불러오는 중…</p>}
+          {actStatus === 'empty' && <EmptyState title="최근 활동 없음" desc="이벤트가 기록되면 표시됩니다." />}
+          {actStatus === 'error' && <EmptyState title="활동 내역을 불러올 수 없음" desc="관리자 권한이 필요하거나 서버에 연결할 수 없습니다." />}
         </div>
       </div>
     </div>
