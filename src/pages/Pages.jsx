@@ -1320,9 +1320,9 @@ function EndpointGuideDrawer({ row, app, onClose }) {
         const summary = await getIssueTypeSummary(sscLookupDomain)
         if (!alive) return
         const nonInfo = (summary || []).filter((t) => String(t.severity).toLowerCase() !== 'info') // info 등급 제외(리스크 점검 목록과 일치)
-        const keys = new Set(nonInfo.map((t) => canonicalIssueKey(t.issue_type)))
+        const keys = new Set(nonInfo.map((t) => t.issue_type)) // 원본 issue_type 기준 — 리스크 점검과 동일 카운트(별칭 유형도 각각)
         const recMap = {}
-        nonInfo.forEach((t) => { const k = canonicalIssueKey(t.issue_type); recMap[k] = { rec: t.ssc_recommendation || null, desc: t.ssc_description || null } })
+        nonInfo.forEach((t) => { recMap[t.issue_type] = { rec: t.ssc_recommendation || null, desc: t.ssc_description || null } })
         setScopeKeys(keys); setScopeRec(recMap); setScopeStatus(keys.size ? 'ok' : 'empty')
       } catch { if (alive) { setScopeKeys(null); setScopeStatus('error') } }
     })()

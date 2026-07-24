@@ -218,7 +218,7 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
             <span className="field-label">재현할 리스크 항목 선택</span>
             <select value={findingKey} onChange={(e) => setFindingKey(e.target.value)}>
               {/* canonical(별칭·버전) 기준 중복 제거 — csp_no_policy/_v2 등이 한 번만 표시 */}
-              {Object.values(findings.reduce((acc, f) => { const k = canonicalIssueKey(f.issue_type); if (!acc[k] && catalogEntry(f.issue_type) && String(f.severity).toLowerCase() !== 'info') acc[k] = f; return acc }, {})).map((f, i) => (
+              {Object.values(findings.reduce((acc, f) => { const k = f.issue_type; if (!acc[k] && catalogEntry(f.issue_type) && String(f.severity).toLowerCase() !== 'info') acc[k] = f; return acc }, {})).map((f, i) => (
                 <option key={`${f.issue_type}-${i}`} value={f.issue_type}>
                   {catalogNameKo(f.issue_type)} · 위험도 {KO_SEVERITY[String(f.severity).toLowerCase()] || f.severity}
                 </option>

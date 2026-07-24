@@ -630,6 +630,8 @@ const KO_ISSUE_NAMES = {
   server_version_exposed: '서버 버전 노출',
   tls_weak_protocol: '오래된 암호화 통신(TLS) 허용',
   tls_weak_cipher: '취약한 암호화 방식 허용',
+  tlscert_expired: '만료된 인증서',
+  tlscert_no_revocation: '인증서 폐기정보(OCSP/CRL) 없음',
   tlscert_excessive_expiration: '인증서 유효기간 과다',
   tlscert_self_signed: '자체서명 인증서 사용',
   tlscert_weak_signature: '약한 알고리즘 서명 인증서',
