@@ -1304,9 +1304,11 @@ function EndpointGuideDrawer({ row, app, onClose }) {
       if (!sscLookupDomain) { setScopeStatus('idle'); return }
       setScopeStatus('loading'); setScopeKeys(null)
       try {
-        const d = await collectRiskFindings(sscLookupDomain, { limit: 100, offset: 0, includeInfo: false })
+        // 전체 이슈 유형 목록(issueTypeSummary)로 스코프 판정 — finding 페이지네이션(첫 100개)에 좌우되지 않도록.
+        //  (대형 도메인은 finding 247개 중 첫 100개에 일부 유형만 등장 → 유형 누락되던 버그 수정)
+        const summary = await getIssueTypeSummary(sscLookupDomain)
         if (!alive) return
-        const keys = new Set((d.findings || []).map((f) => canonicalIssueKey(f.issue_type)))
+        const keys = new Set((summary || []).map((t) => canonicalIssueKey(t.issue_type)))
         setScopeKeys(keys); setScopeStatus(keys.size ? 'ok' : 'empty')
       } catch { if (alive) { setScopeKeys(null); setScopeStatus('error') } }
     })()
