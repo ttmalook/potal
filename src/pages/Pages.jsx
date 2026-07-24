@@ -1354,9 +1354,6 @@ export function ValidationSandbox({ app, focus = null }) {
         title="검증랩 (참고 시연)"
         desc="리스크 항목을 검증랩에서 재현해 조치 전·후 참고 증적 생성"
       />
-      <NoticeBox tone="warning" title="파트너 검증랩 (참고 시연)">
-        고객 운영환경 검증이 아니라, 조치 방향을 재현·시연해 참고 증적을 생성하는 기능입니다.
-      </NoticeBox>
 
       <FilterBar
         fields={filterFields}

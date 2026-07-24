@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect } from 'react'
 import * as data from './data/mock.js'
 import { Toast } from './components/common.jsx'
 import { Icon } from './components/icons.jsx'
+import { BrandMark } from './components/BrandMark.jsx'
 import { CustomerWizard, DomainModal, CustomerEditModal, ChangePasswordModal } from './features/Registration.jsx'
 import LoginView from './features/Login.jsx'
 import { refreshSession, logout as authLogout } from './lib/auth.js'
@@ -50,7 +51,7 @@ const NAV = [
   { key: 'customers', label: '고객사', group: '점검 대상' },
   { key: 'domains', label: '도메인 등록', group: '점검 대상' },
   { key: 'findings', label: '리스크 점검', group: '리스크' },
-  { key: 'sandbox', label: '검증랩 (참고 시연)', group: '검증 · 조치' },
+  { key: 'sandbox', label: '검증랩', group: '검증 · 조치' },
   { key: 'guides', label: '조치 가이드', group: '검증 · 조치' },
   { key: 'evidence', label: '증적 팩', group: '검증 · 조치' },
   { key: 'customer-view', label: '고객 전달 화면', group: '전달' },
@@ -281,7 +282,7 @@ export default function App() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-logo">SS</div>
+          <div className="brand-logo"><BrandMark size={30} /></div>
           {!collapsed && (
             <div className="brand-text">
               <div className="brand-name">SSC 파트너 포털</div>
@@ -309,13 +310,6 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="sidebar-footer">
-          {!collapsed && (
-            <div className="env-note">
-              <span className="env-dot" /> 임시 저장(메모리) · SSC 읽기 전용
-            </div>
-          )}
-        </div>
       </aside>
 
       {/* 모바일: 사이드바 열림 시 뒷배경(클릭하면 닫힘) */}
