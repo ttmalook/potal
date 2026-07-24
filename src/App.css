@@ -37,7 +37,7 @@
   flex-shrink: 0;
 }
 .brand-logo .brand-mark { width: 30px; height: auto; }
-.brand-logo .bm-line { stroke: var(--primary); stroke-width: 3.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.brand-logo .bm-line { stroke: var(--text-primary); stroke-width: 3.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .brand-name {
   font-weight: 700;
   color: #0f172a;
