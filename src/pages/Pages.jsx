@@ -1019,15 +1019,12 @@ export function GuideSteps({ detail, flat = false }) {
                 <pre className="verify-block">{g.verify.map((v, i) => (<div key={i} className="verify-line"><span className="verify-prompt">$</span> {v}</div>))}</pre>
               </>)
             : <p className="guide-text hint-text">이 유형의 자동 검증 명령 예시는 준비 중입니다. 조치 후 SSC 재스캔으로 해소 여부를 확인하세요.</p>)}
-      <NoticeBox tone="info">
-        정확한 <b>조치 대상(영향 자산·증거)</b>은 리스크 점검 결과 또는 <b>검증랩 재현</b>과 함께 전달하세요. 조치 후 <b>SSC 재스캔</b>으로 해소 여부를 확인합니다.
-      </NoticeBox>
     </>
   )
 
   // 4) 마무리 — 검증랩 SecWrap 재사용(일반 조치 방향 + 고객 조치 체크리스트). 실행 로그는 가이드에 없음(includeLog=false).
   const Wrap = entry
-    ? <SecWrap run={guideRun} entry={entry} includeLog={false} />
+    ? <SecWrap run={guideRun} entry={entry} includeLog={false} disclaimer={<>이 가이드는 <b>일반 구성 기준</b>입니다. 고객사 웹서버·프록시·CDN 구성에 따라 적용 방식이 다를 수 있으니 운영 반영 전 <b>테스트</b>가 필요합니다.</>} />
     : (<>
         <div className="mini-title">일반 조치 방향 (참고)</div>
         <p className="guide-text">{guideRun.guide.direction}</p>

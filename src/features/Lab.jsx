@@ -582,7 +582,7 @@ function SecObserve({ run, ev, entry }) {
   )
 }
 
-export function SecWrap({ run, entry, includeLog = false }) {
+export function SecWrap({ run, entry, includeLog = false, disclaimer }) {
   return (
     <>
       <div className="mini-title">일반 조치 방향 (참고)</div>
@@ -600,14 +600,14 @@ export function SecWrap({ run, entry, includeLog = false }) {
         <li><span className="cbx"><Icon name="square" size={13} /></span> SecurityScorecard 재스캔으로 최종 해소 확인</li>
       </ul>
 
-      <NoticeBox tone="warning" title="고객 환경 검증이 아닙니다">{run.note}</NoticeBox>
-
       {includeLog && (
         <>
           <div className="mini-title">실행 로그 (검증랩 내부 수행 기록)</div>
           <pre className="raw-pre">{(run.logs || []).join('\n') || '—'}</pre>
         </>
       )}
+
+      <NoticeBox tone="warning" title="고객 환경 검증이 아닙니다">{disclaimer || '이 문서는 파트너 검증랩에서 같은 문제를 재현해 고객 시스템을 실제로 바꾸거나 검증한 것은 아니며, 자사 표준 검증랩환경에서 재현한 증적입니다. 실제 해소 여부는 SecurityScorecard 재스캔으로 확인합니다.'}</NoticeBox>
     </>
   )
 }
@@ -719,11 +719,6 @@ export function EvidenceDrawer({ run, app, onClose }) {
       footer={footer}
       width="lg"
     >
-      <NoticeBox tone="info">
-        이 문서는 파트너 검증랩에서 <b>같은 문제를 재현</b>해 <b>조치 전 → 조치 후</b>를 비교로 보여주는 참고 자료입니다.
-        고객 시스템을 실제로 바꾸거나 검증한 것은 아니며, 실제 해소 여부는 <b>SecurityScorecard 재스캔</b>으로 확인합니다.
-      </NoticeBox>
-
       <LabEvidenceSteps run={run} />
     </Drawer>
   )
