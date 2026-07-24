@@ -926,10 +926,10 @@ function IssueRemediationGuide({ issueType }) {
 }
 
 // 조치 가이드 단계형(개요 → 조치 방법 → 검증 → 마무리) — 검증랩 stepper(evi-* 클래스)와 동일 UX.
-//  ★ 문장·헤딩·컴포넌트 일관성: catalogEntry 가 있으면 검증랩과 '같은 Sec* 섹션'을 합성 run 으로 재사용
+//  * 문장·헤딩·컴포넌트 일관성: catalogEntry 가 있으면 검증랩과 '같은 Sec* 섹션'을 합성 run 으로 재사용
 //     (무엇이 왜 문제인가요 / 어디를 고쳐야 하나요 / 검증 명령 다크블록 / 일반 조치 방향·체크리스트).
-//  ★ 가이드엔 실측 '관측값'이 없음 → '조치 전/후·관측값 비교' 단계는 제외(대신 3단계=검증 명령).
-//  ★ catalogEntry 없는 3종(unsafe_sri·domain_missing_https 등)은 같은 헤딩으로 getRemediationGuide 폴백.
+//  * 가이드엔 실측 '관측값'이 없음 → '조치 전/후·관측값 비교' 단계는 제외(대신 3단계=검증 명령).
+//  * catalogEntry 없는 3종(unsafe_sri·domain_missing_https 등)은 같은 헤딩으로 getRemediationGuide 폴백.
 //  ※ 증적 팩 임베드는 평면 문서 유지(IssueRemediationGuide) — 여기 stepper는 가이드 드로어 전용.
 export function GuideSteps({ detail, flat = false }) {
   const [step, setStep] = useState(0)

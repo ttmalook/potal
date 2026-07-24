@@ -7,7 +7,8 @@ import React from 'react'
 import {
   LayoutDashboard, Building2, Globe, ShieldAlert, FlaskConical, BookOpen,
   Package, CheckCircle2, Eye, ScrollText, Users, Boxes,
-  Download, Wrench, RefreshCw, Send, Circle, Menu, Bell, Info, Square
+  Download, Wrench, RefreshCw, Send, Circle, Menu, Bell, Info, Square,
+  Lock, LogOut
 } from 'lucide-react'
 
 // name(주로 nav key / 프로세스·스탯 키) → Lucide 컴포넌트
@@ -33,7 +34,9 @@ const ICONS = {
   menu: Menu,
   bell: Bell,
   info: Info,
-  square: Square
+  square: Square,
+  lock: Lock,
+  logout: LogOut
 }
 
 export function Icon({ name, size = 18, strokeWidth = 1.8, className }) {

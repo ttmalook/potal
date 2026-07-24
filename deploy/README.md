@@ -12,7 +12,7 @@
 └────┬──────────────────┬─────────┘
      │ 5432             │ 8899
 ┌────▼──────┐    ┌──────▼──────────────────┐
-│ VM-DB     │    │ VM-LAB  검증랩 14 컨테이너 │  ⚠️ 의도적 취약 서비스
+│ VM-DB     │    │ VM-LAB  검증랩 14 컨테이너 │  주의: 의도적 취약 서비스
 │ Postgres  │    │         (격리 필수)        │
 └───────────┘    └─────────────────────────┘
 ```
@@ -49,20 +49,20 @@ OS: **Ubuntu Server 22.04/24.04 LTS** 권장. 각 VM에 `docker` + `docker compo
 
 | 변수 | 필수 | 기본값 | 설명 |
 |---|:--:|---|---|
-| `PGHOST` | ✅ | — | VM-DB IP |
+| `PGHOST` | ✓ | — | VM-DB IP |
 | `PGPORT` |  | `5432` | DB 포트 |
 | `PGDATABASE` |  | `ssc_portal` | DB 이름(VM-DB와 동일) |
 | `PGUSER` |  | `ssc` | DB 사용자(VM-DB와 동일) |
-| `PGPASSWORD` | ✅ | — | **VM-DB와 동일 값** |
+| `PGPASSWORD` | ✓ | — | **VM-DB와 동일 값** |
 | `PGSSL` |  | `false` | DB 전송 TLS. 1차 배포 false(방화벽 격리), 이후 인증서 도입 후 true |
 | `PGSSL_REJECT_UNAUTHORIZED` |  | `false` | 자체서명 인증서 허용 여부 |
 | `LAB_COLLECTOR` |  | `docker` | 수집기 모드 |
 | `LAB_COLLECTOR_URL` | ▲ | — | VM-LAB 수집기 `http://<VM-LAB>:8899` (검증랩 사용 시 필수) |
-| `AUTH_ACCESS_SECRET` | ✅ | — | JWT 서명 + 설정 암호화 KEK 근원. **기본값이면 부팅 거부**. `openssl rand -base64 48` |
+| `AUTH_ACCESS_SECRET` | ✓ | — | JWT 서명 + 설정 암호화 KEK 근원. **기본값이면 부팅 거부**. `openssl rand -base64 48` |
 | `SEED_ADMIN_EMAIL` |  | `admin@ssc.local` | 초기 관리자 이메일 |
-| `SEED_ADMIN_PASSWORD` | ✅ | — | 초기 관리자 비밀번호. **기본값이면 부팅 거부**. `openssl rand -base64 24` |
-| `SERVER_NAME` | ✅ | — | nginx server_name(VM-APP IP/호스트명) |
-| `CORS_ORIGIN` | ✅ | — | 허용 오리진 `https://<VM-APP>` |
+| `SEED_ADMIN_PASSWORD` | ✓ | — | 초기 관리자 비밀번호. **기본값이면 부팅 거부**. `openssl rand -base64 24` |
+| `SERVER_NAME` | ✓ | — | nginx server_name(VM-APP IP/호스트명) |
+| `CORS_ORIGIN` | ✓ | — | 허용 오리진 `https://<VM-APP>` |
 | `ENABLE_HSTS` |  | `false` | 자체서명 구간은 false, 실인증서 전환 후 true |
 | `HSTS_MAX_AGE` |  | `300` | HSTS max-age(초) — 점진 확대 |
 | `SSC_API_BASE_URL` |  | `https://api.securityscorecard.io` | SSC API 기준 URL |
@@ -78,7 +78,7 @@ OS: **Ubuntu Server 22.04/24.04 LTS** 권장. 각 VM에 `docker` + `docker compo
 |---|:--:|---|---|
 | `PGDATABASE` |  | `ssc_portal` | DB 이름 |
 | `PGUSER` |  | `ssc` | DB 사용자 |
-| `PGPASSWORD` | ✅ | — | 강한 값으로 교체. **VM-APP와 동일**. `openssl rand -base64 24` |
+| `PGPASSWORD` | ✓ | — | 강한 값으로 교체. **VM-APP와 동일**. `openssl rand -base64 24` |
 
 > **시크릿은 커밋 금지.** `.env`는 `.gitignore` 대상이며, 예시(`*.example`)에는 placeholder만 둡니다. SSC/Claude 키는 가능하면 env 대신 관리자 화면에서 설정(암호화 저장).
 
@@ -120,7 +120,7 @@ ufw default deny incoming
 ufw enable
 ```
 
-> ⚠️ 랩 타깃 컨테이너들은 호스트 포트를 열지 않습니다(내부 네트워크 전용). 이 상태를 반드시 유지하세요.
+> 주의: 랩 타깃 컨테이너들은 호스트 포트를 열지 않습니다(내부 네트워크 전용). 이 상태를 반드시 유지하세요.
 
 ### 3. VM-APP (앱 + 웹)
 
@@ -241,7 +241,7 @@ crontab -e
 
 > 백업본은 **VM 밖(NAS·별도 스토리지)으로 주기적으로 복사**하세요. VM이 통째로 손실되면 안에 있던 백업도 함께 사라집니다.
 
-> ⚠️ **ESXi 스냅샷은 백업이 아닙니다.** 롤백 지점일 뿐이며, 오래 유지하면 성능이 저하됩니다. 백업은 반드시 VM 외부로 보내세요.
+> 주의: **ESXi 스냅샷은 백업이 아닙니다.** 롤백 지점일 뿐이며, 오래 유지하면 성능이 저하됩니다. 백업은 반드시 VM 외부로 보내세요.
 
 ### 복구 절차 (RTO 10분)
 
@@ -272,7 +272,7 @@ crontab -e
 
 ### 발급 (수동 DNS-01)
 ```bash
-# 💻 VM-APP — <domain>·<email> 은 실제 값으로
+# VM-APP — <domain>·<email> 은 실제 값으로
 sudo docker run --rm -it -v /etc/letsencrypt:/etc/letsencrypt \
   certbot/certbot certonly --manual --preferred-challenges dns \
   -d <domain> --agree-tos -m <email> --no-eff-email

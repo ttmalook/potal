@@ -647,15 +647,15 @@ export const SOURCES = ['SecurityScorecard API', 'External Observation', 'Partne
 
 // Dashboard 전체 운영 프로세스 (10단계) — SSC 재스캔/공식 검증 포함
 export const processFlow = [
-  { step: 1, label: '고객사 등록', icon: '🏢', nav: 'customers', desc: '파트너가 신규 고객사를 등록' },
-  { step: 2, label: '도메인/스코프 등록', icon: '🌐', nav: 'domains', desc: '대표 도메인 및 점검 허용 범위 등록' },
-  { step: 3, label: 'SSC 리스크 수집', icon: '🔗', nav: 'customers', desc: '점수·요인·이슈·리스크 수집' },
-  { step: 4, label: '리스크 점검 생성', icon: '⚠️', nav: 'findings', desc: '수집된 리스크를 항목으로 정리' },
-  { step: 5, label: '검증랩 참고 증적 생성', icon: '🧪', nav: 'sandbox', desc: '검증랩에서 조치 전·후 참고 시연' },
-  { step: 6, label: '증적 팩 생성', icon: '📦', nav: 'evidence', desc: '리스크 + 관측값 + 참고 증적 + 권고 묶음' },
-  { step: 7, label: '고객 전달', icon: '👁️', nav: 'customer-view', desc: '고객 전달 화면에서 미리보기 후 리포트 제공' },
-  { step: 8, label: '고객 조치', icon: '🛠️', nav: 'customer-view', desc: '고객 내부 검토 및 운영환경 조치' },
-  { step: 9, label: 'SSC 재스캔 / 공식 검증', icon: '🔁', nav: 'findings', desc: 'SecurityScorecard 재스캔·공식 검증으로 해소 확인' }
+  { step: 1, label: '고객사 등록', nav: 'customers', desc: '파트너가 신규 고객사를 등록' },
+  { step: 2, label: '도메인/스코프 등록', nav: 'domains', desc: '대표 도메인 및 점검 허용 범위 등록' },
+  { step: 3, label: 'SSC 리스크 수집', nav: 'customers', desc: '점수·요인·이슈·리스크 수집' },
+  { step: 4, label: '리스크 점검 생성', nav: 'findings', desc: '수집된 리스크를 항목으로 정리' },
+  { step: 5, label: '검증랩 참고 증적 생성', nav: 'sandbox', desc: '검증랩에서 조치 전·후 참고 시연' },
+  { step: 6, label: '증적 팩 생성', nav: 'evidence', desc: '리스크 + 관측값 + 참고 증적 + 권고 묶음' },
+  { step: 7, label: '고객 전달', nav: 'customer-view', desc: '고객 전달 화면에서 미리보기 후 리포트 제공' },
+  { step: 8, label: '고객 조치', nav: 'customer-view', desc: '고객 내부 검토 및 운영환경 조치' },
+  { step: 9, label: 'SSC 재스캔 / 공식 검증', nav: 'findings', desc: 'SecurityScorecard 재스캔·공식 검증으로 해소 확인' }
 ]
 
 // Risk Finding 상세 — Source Timeline (10단계)
@@ -720,9 +720,9 @@ export const sandboxRunMeta = [
 
 // SSC 재스캔 / 공식 검증 mock 액션 버튼
 export const rescanActions = [
-  { key: 'rescan', label: 'SSC 재스캔 요청 안내', icon: '🔁' },
-  { key: 'status', label: '고객 조치 상태 업데이트', icon: '🛠️' },
-  { key: 'followup', label: 'Partner Follow-up 생성', icon: '📌' }
+  { key: 'rescan', label: 'SSC 재스캔 요청 안내', },
+  { key: 'status', label: '고객 조치 상태 업데이트', },
+  { key: 'followup', label: 'Partner Follow-up 생성', }
 ]
 
 // Evidence Pack A섹션 — SSC Finding Data (mock)

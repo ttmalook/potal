@@ -339,8 +339,8 @@ export default function App() {
                 <div className="user-role">{{ admin: 'Admin', partner: 'Partner', viewer: 'Viewer · 읽기 전용' }[user?.role] || user?.role || ''} · {user?.email || ''}</div>
               </div>
             </div>
-            <button className="icon-btn" onClick={() => setPwModal(true)} title="비밀번호 변경">🔑</button>
-            <button className="icon-btn" onClick={doLogout} title="로그아웃">⏻</button>
+            <button className="icon-btn" onClick={() => setPwModal(true)} title="계정 보안"><Icon name="lock" size={18} /></button>
+            <button className="icon-btn" onClick={doLogout} title="로그아웃"><Icon name="logout" size={18} /></button>
           </div>
         </header>
 

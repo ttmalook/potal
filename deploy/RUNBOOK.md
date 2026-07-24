@@ -138,7 +138,7 @@ sh <repo>/deploy/backup/lab-artifacts-backup.sh
 
 **복구 목표(RTO 10분) — 장애별 조치:** 컨테이너 다운=자동복구 / 설정 오류=스냅샷 롤백 / VM 손실=재배포 / DB 손상=`restore-db.sh`.
 
-> ⚠️ 백업본은 **VM 밖(NAS 등)으로 주기 복사**. ESXi 스냅샷은 백업이 아니라 롤백 지점입니다.
+> 주의: 백업본은 **VM 밖(NAS 등)으로 주기 복사**. ESXi 스냅샷은 백업이 아니라 롤백 지점입니다.
 
 ---
 

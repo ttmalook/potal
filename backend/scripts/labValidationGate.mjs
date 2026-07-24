@@ -14,7 +14,7 @@ if (!arg) { console.error('사용법: node scripts/labValidationGate.mjs <issueT
 const ICON = { pass: '✓', fail: '✗', warn: '⚠' }
 
 function printReport(rep) {
-  console.log(`\n${rep.passed ? '✅ PASS' : '❌ FAIL'}  ${rep.issueType}  (fail:${rep.failCount} warn:${rep.warnCount}${rep.run ? ` · ${rep.run.id}` : ''})`)
+  console.log(`\n${rep.passed ? '✓ PASS' : '✗ FAIL'}  ${rep.issueType}  (fail:${rep.failCount} warn:${rep.warnCount}${rep.run ? ` · ${rep.run.id}` : ''})`)
   for (const c of rep.checks) console.log(`   ${ICON[c.status]} ${c.label.padEnd(22)} ${c.detail}`)
 }
 
@@ -26,7 +26,7 @@ async function main() {
     for (const it of all) {
       const rep = await validateLab(it)
       results.push(rep)
-      console.log(`${rep.passed ? '✅' : '❌'} ${it.padEnd(38)} fail:${rep.failCount} warn:${rep.warnCount}` +
+      console.log(`${rep.passed ? '✓' : '✗'} ${it.padEnd(38)} fail:${rep.failCount} warn:${rep.warnCount}` +
         (rep.passed ? '' : '  → ' + rep.checks.filter((c) => c.status === 'fail').map((c) => c.label).join(', ')))
     }
     const passed = results.filter((r) => r.passed).length

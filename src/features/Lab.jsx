@@ -362,7 +362,7 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
                   <td><StatusBadge status={r.status === 'succeeded' ? 'Success' : r.status === 'unsupported' ? 'None' : 'Failed'} /></td>
                   <td>
                     {repRunIds.has(r.id)
-                      ? <span className="badge badge-soft badge-success">★ 대표 증적</span>
+                      ? <span className="badge badge-soft badge-success">대표 증적</span>
                       : (app?.can?.('evidence') && r.status === 'succeeded')
                         ? <button className="btn btn-mini" onClick={() => designate(r)}>대표로 지정</button>
                         : <span className="hint-text">—</span>}

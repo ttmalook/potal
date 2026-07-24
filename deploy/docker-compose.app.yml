@@ -8,7 +8,7 @@
 #     docker compose -f docker-compose.app.yml --env-file .env up -d --build
 #     → https://<VM-APP-IP>   (자체서명: 브라우저 경고 1회 허용)
 #
-#   ⚠️ db 는 이 스택에 없습니다(VM-DB). backend 의 depends_on 에서 db 를 제거했습니다
+#   주의: db 는 이 스택에 없습니다(VM-DB). backend 의 depends_on 에서 db 를 제거했습니다
 #      — compose 는 원격 DB 를 헬스체크할 수 없기 때문입니다.
 #      대신 backend 는 DB 연결 실패 시 파일 저장소로 폴백하고 그 사실을 감사 로그에 남깁니다.
 # =====================================================================

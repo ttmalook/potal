@@ -34,10 +34,10 @@ run_one() {
   echo "==================================================================="
   if docker compose exec -T "$SVC" sh "/$d/reproduce.sh" \
      && docker compose exec -T "$SVC" sh "/$d/remediate.sh"; then
-    echo "✅ PASS · $it  (취약 재현 → 조치 → 해소·웹 무해 확인)"
+    echo "✓ PASS · $it  (취약 재현 → 조치 → 해소·웹 무해 확인)"
     return 0
   else
-    echo "❌ FAIL · $it"
+    echo "✗ FAIL · $it"
     return 1
   fi
 }

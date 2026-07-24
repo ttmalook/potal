@@ -92,11 +92,11 @@ async function main() {
     if (!f0) { console.log(`  · ${t}: findings 0`); continue }
     console.log(`  · ${t}: ${arr.length}건, finding 필드: ${Object.keys(f0).join(', ')}`)
     const dhits = [...new Set(scan(arr.slice(0, 5), t))]
-    dhits.slice(0, 8).forEach((h) => console.log('      ⚑ ' + h))
+    dhits.slice(0, 8).forEach((h) => console.log('      - ' + h))
     await new Promise((s) => setTimeout(s, 120))
   }
   console.log('\n── 결론 힌트 ──')
-  console.log('  · 위 ⚑ 에 nginx/apache/iis/cpe/product/버전 이 실제로 나오면 → 자동 선택 근거 있음')
+  console.log('  · 위 - 에 nginx/apache/iis/cpe/product/버전 이 실제로 나오면 → 자동 선택 근거 있음')
   console.log('  · 안 나오면 → 웹 엔진 확정 정보 없음 → 수동 선택(탭) 기본 + 있으면 보조')
 }
 

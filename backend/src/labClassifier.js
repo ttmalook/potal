@@ -6,7 +6,7 @@
 //   · extend      : 같은 패밀리지만 검증 의미가 단순 존재/값과 달라 전용 처리 필요(사람 확인).
 //   · needs_infra : 새 아키타입/collector 필요(Phase 1 레시피 엔진 미지원 패밀리 포함).
 //   · guide_only  : 인프라 랩으로 재현 불가(외부 데이터/평판/CVE 등).
-//  ★ 이름 유사도가 아니라 '검증 의미(verificationSemantics)'로 판정 — HSTS(존재)≠CSP(정책분석).
+//  * 이름 유사도가 아니라 '검증 의미(verificationSemantics)'로 판정 — HSTS(존재)≠CSP(정책분석).
 //  레시피는 Claude(AI Recipe Compiler)가 만들고, 이 classifier 는 라우팅만 한다.
 // =====================================================================
 import { classify } from './labCoverage.js'

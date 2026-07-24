@@ -335,7 +335,7 @@ async function captureClickjack(url, expectBlocked = false) {
         <div style="background:#7f1d1d;color:#fff;padding:10px 16px;font-size:13px;font-weight:600">공격자 페이지 (evil.example) — 피해 사이트를 iframe 으로 삽입</div>
         <div id="framehost" style="position:relative;width:100%;height:520px;background:#111827">
           <iframe src="${url}" style="position:absolute;inset:0;width:100%;height:100%;border:0;opacity:.9"></iframe>
-          <button id="decoy" style="position:absolute;left:50%;bottom:26px;transform:translateX(-50%);background:#f59e0b;color:#111;border:0;padding:12px 22px;border-radius:8px;font-size:15px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.4)">🎁 무료 경품 받기 — 지금 클릭!</button>
+          <button id="decoy" style="position:absolute;left:50%;bottom:26px;transform:translateX(-50%);background:#f59e0b;color:#111;border:0;padding:12px 22px;border-radius:8px;font-size:15px;font-weight:700;box-shadow:0 6px 18px rgba(0,0,0,.4)">무료 경품 받기 — 지금 클릭!</button>
         </div>
         <div id="cap" style="padding:10px 16px;font-size:12px;color:#93c5fd"></div>
       </div>`
@@ -680,13 +680,13 @@ function mailVerdictLines(spfRaw, dmarcRaw) {
     return [
       'Received-SPF: none (도메인에 SPF 정책 없음 → 발신 IP 검증 불가)',
       'DMARC: none (정책 없음)',
-      '==> 🚨 위조 메일 수신 허용됨 → 받은편지함 전달 (스푸핑 성공)'
+      '==> 위조 메일 수신 허용됨 → 받은편지함 전달 (스푸핑 성공)'
     ]
   }
   return [
     `Received-SPF: ${dashAll ? 'fail' : 'softfail'} (${SPOOF_IP} 은 SPF ${dashAll ? '-all' : '~all'} 로 미승인)`,
     `DMARC: p=${pol} (SPF 정렬 실패 → 정책 적용)`,
-    '==> ✅ 위조 메일 격리·거부됨 (스푸핑 차단)'
+    '==> ✓ 위조 메일 격리·거부됨 (스푸핑 차단)'
   ]
 }
 // 이슈별 DNS 질의 focus (malformed SPF / DMARC p=none / DKIM 키 — 서브도메인 레코드로 재현)
@@ -711,13 +711,13 @@ function dnsVerdictLines(kind, rec) {
   if (kind === 'spf_malformed') {
     const valid = rec && /v=spf1/i.test(rec) && /include:/i.test(rec) && /[-~]all/i.test(rec)
     return valid
-      ? ['SPF 구문: 정상 (include:… -all)', '==> ✅ 위조 메일 SPF 검증으로 거부 (스푸핑 차단)']
-      : ['SPF 구문: 오류(permerror) → 정책 미적용으로 처리', '==> 🚨 위조 메일 수신 허용 (스푸핑 성공)']
+      ? ['SPF 구문: 정상 (include:… -all)', '==> ✓ 위조 메일 SPF 검증으로 거부 (스푸핑 차단)']
+      : ['SPF 구문: 오류(permerror) → 정책 미적용으로 처리', '==> 위조 메일 수신 허용 (스푸핑 성공)']
   }
   const pol = rec ? (String(rec).match(/p=(\w+)/i)?.[1] || 'none') : 'none'
   return pol === 'none'
-    ? ['DMARC: p=none (모니터링만·실패 메일 처리 안 함)', '==> 🚨 위조 메일 수신 허용 (리포트만, 스푸핑 성공)']
-    : [`DMARC: p=${pol} (실패 메일 처리)`, '==> ✅ 위조 메일 격리·거부 (스푸핑 차단)']
+    ? ['DMARC: p=none (모니터링만·실패 메일 처리 안 함)', '==> 위조 메일 수신 허용 (리포트만, 스푸핑 성공)']
+    : [`DMARC: p=${pol} (실패 메일 처리)`, '==> ✓ 위조 메일 격리·거부 (스푸핑 차단)']
 }
 // openssl x509 dates: notAfter/validity 라인을 variant 기준으로 강조
 function opensslLineClass(variant) {
@@ -1130,8 +1130,8 @@ app.post('/collect', async (req, res) => {
           const bitsB = dkimKeyBits(rB)
           const bitsA = dkimKeyBits(rA)
           const verdict = (bits) => bits && bits >= 1024
-            ? [`DKIM 키: ${bits}비트 (충분)`, '==> ✅ 서명 위조가 현실적으로 어려움']
-            : [`DKIM 키: ${bits || '?'}비트 (부족·약함)`, '==> 🚨 키가 짧아 서명 위조·우회 위험']
+            ? [`DKIM 키: ${bits}비트 (충분)`, '==> ✓ 서명 위조가 현실적으로 어려움']
+            : [`DKIM 키: ${bits || '?'}비트 (부족·약함)`, '==> 키가 짧아 서명 위조·우회 위험']
           const parseCmd = '# DKIM 공개키(p=) 파싱 → RSA 키 비트 수'
           const segB = [{ cmd: cmd(DNS_VUL), raw: orNone(rB) }, { cmd: parseCmd, raw: verdict(bitsB).join('\n') }]
           const segA = [{ cmd: cmd(DNS_REM), raw: orNone(rA) }, { cmd: parseCmd, raw: verdict(bitsA).join('\n') }]

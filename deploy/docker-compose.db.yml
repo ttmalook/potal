@@ -5,7 +5,7 @@
 #     cp .env.db.example .env && vi .env      # PGPASSWORD 설정
 #     docker compose -f docker-compose.db.yml --env-file .env up -d
 #
-#   ⚠️ 5432 는 VM-APP 에서만 접근 가능해야 합니다. 반드시 방화벽으로 제한하세요.
+#   주의: 5432 는 VM-APP 에서만 접근 가능해야 합니다. 반드시 방화벽으로 제한하세요.
 #      ufw:  ufw allow from <VM-APP-IP> to any port 5432 proto tcp
 #            ufw deny 5432
 # =====================================================================
