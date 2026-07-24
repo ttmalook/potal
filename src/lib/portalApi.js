@@ -4,6 +4,7 @@
 //  - 백엔드 미실행 시 throw → App이 로컬(mock) 모드로 폴백.
 // =====================================================================
 import { call } from './apiCall.js'
+import { getAccessToken } from './auth.js'
 
 const jsonOpts = (method, body) => ({
   method,
@@ -28,8 +29,24 @@ export const apiUpdateEvidencePack = (id, patch) => call(`/api/portal/evidence-p
 export const apiDeleteEvidencePack = (id) => call(`/api/portal/evidence-packs/${encodeURIComponent(id)}`, jsonOpts('DELETE'))
 // 공개(무인증) 게시 팩 조회 — 발행된 팩만 토큰으로 반환
 export const fetchSharedPack = (token) => call(`/api/public/shared/${encodeURIComponent(token)}`).then((d) => d.pack)
-// 공개(무인증) 통합 리포트 조회 — 고객사 토큰 1개로 전체 번들 반환
-export const fetchSharedReport = (token) => call(`/api/public/report/${encodeURIComponent(token)}`).then((d) => d.report)
+
+// 리포트 HTML 내보내기(인증) — 자립형 단일 HTML 파일을 blob 으로 받아 다운로드.
+//  names: issue_type→한글명(백엔드 이미지엔 프론트 카탈로그가 없어 프론트가 전달).
+export async function exportReportHtml(customer, names = {}) {
+  const base = import.meta.env.VITE_BACKEND_URL || ''
+  const t = getAccessToken()
+  const resp = await fetch(`${base}/api/portal/report-export`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) },
+    body: JSON.stringify({ customer, names })
+  })
+  if (!resp.ok) throw new Error(`export failed (HTTP ${resp.status})`)
+  const blob = await resp.blob()
+  const cd = resp.headers.get('Content-Disposition') || ''
+  const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/.exec(cd)
+  const filename = m ? decodeURIComponent(m[1]) : `SSC_리포트_${customer}.html`
+  return { blob, filename }
+}
 
 // 감사 로그(관리자 전용) — kind: all|user|security|system
 export const fetchAudit = (params = {}) => {

@@ -30,6 +30,11 @@ import { loadSscTokenOverride, setSscToken, clearSscToken, sscTokenStatus, loadC
 import { loadActiveRecipes, listRecipes, getRecipeById, addCandidate, setStaging, clearStaging, recordGate, adoptRecipe, deleteRecipe, activeRecipeIssueTypes } from './labRecipes.js'
 import { getIssueTypeCatalog } from './securityScorecardIssueCollector.js'
 import { buildCoverage } from './labCoverage.js'
+import { buildReportHtml } from './reportHtml.js'
+import { GUIDES, guideKey } from './remediationGuides.js'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 import { classifyIssue } from './labClassifier.js'
 import { compileRecipe } from './labRecipeCompiler.js'
 import { validateLab } from './labValidationGate.js'
@@ -814,38 +819,81 @@ app.get('/api/public/shared/:token', rateLimit({ windowMs: 60000, max: 30 }), as
   res.json({ ok: true, pack })
 })
 
-// 공개(무인증) 통합 리포트 — 고객사 토큰 1개로 전체 리포트 번들(등급+조치 우선순위+증적 팩+랩 런) 제공.
 const hostOfDom = (s) => String(s || '').replace(/^https?:\/\//, '').split('/')[0].split(':')[0].toLowerCase()
-app.get('/api/public/report/:token', rateLimit({ windowMs: 60000, max: 20 }), async (req, res) => {
-  const token = req.params.token
-  if (!token) return res.status(400).json({ ok: false, message: 'token required' })
-  const customers = await portal.getCustomers()
-  const cust = (customers || []).find((c) => c.reportShareToken === token)
-  if (!cust) return res.status(404).json({ ok: false, message: 'report not found' })
-  if (cust.reportShareExpiresAt && Date.now() > Date.parse(cust.reportShareExpiresAt)) {
-    return res.status(410).json({ ok: false, errorCode: 'LINK_EXPIRED', message: '만료된 링크입니다.' })
-  }
+const canonType = (k) => String(k || '').toLowerCase().replace(/_v\d+$/, '')
+
+// Pretendard 폰트를 data URI 로 1회 로드(캐시). 없으면 시스템 폰트 폴백.
+let _fontUri
+function fontDataUri() {
+  if (_fontUri !== undefined) return _fontUri
+  try {
+    const buf = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../assets/PretendardVariable.woff2'))
+    _fontUri = 'data:font/woff2;base64,' + buf.toString('base64')
+  } catch { _fontUri = null }
+  return _fontUri
+}
+
+// 랩 증적 스크린샷을 data URI 로 임베드(best-effort). mock/미해결은 null → 리포트가 플레이스홀더 렌더.
+async function imgToDataUri(screenshot) {
+  try {
+    if (!screenshot || String(screenshot).startsWith('mock://')) return null
+    let url = String(screenshot)
+    if (!/^https?:\/\//.test(url)) {
+      const base = process.env.LAB_COLLECTOR_URL || 'http://localhost:8899'
+      url = `${base}/artifacts/${url.split('/').pop()}`
+    }
+    const r = await fetch(url)
+    if (!r.ok) return null
+    const buf = Buffer.from(await r.arrayBuffer())
+    if (buf.length > 4_000_000) return null
+    return `data:${r.headers.get('content-type') || 'image/png'};base64,${buf.toString('base64')}`
+  } catch { return null }
+}
+
+// 리포트 HTML 내보내기(인증) — 자립형 단일 HTML(등급+조치 우선순위+항목별 증적/가이드, 폰트·이미지 임베드) 다운로드.
+//  한글명은 프론트가 body.names 로 전달(백엔드 이미지엔 프론트 카탈로그가 없음).
+app.post('/api/portal/report-export', async (req, res) => {
+  const customer = String(req.body?.customer || req.query.customer || '').trim()
+  const names = (req.body && req.body.names) || {}
+  if (!customer) return res.status(400).json({ ok: false, message: 'customer required' })
   const domains = await portal.getDomains()
-  const dom = (domains || []).find((d) => d.customer === cust.name)
-  const scoreDomain = cust.reportShareDomain || (dom ? (dom.sscLookupDomain || String(dom.serviceEndpoint || dom.primary || '').split(':')[0]) : null)
+  const dom = (domains || []).find((d) => d.customer === customer)
+  const scoreDomain = dom ? (dom.sscLookupDomain || String(dom.serviceEndpoint || dom.primary || '').split(':')[0]) : null
   const shownDomain = dom ? (dom.serviceEndpoint || dom.primary) : scoreDomain
-  if (!scoreDomain) return res.status(404).json({ ok: false, message: 'no domain for report' })
-  // SSC 등급 + 조치 우선순위(info 제외 전 유형). 실패해도 증적만으로 리포트 제공.
-  let score = null, grade = null, issueTypeSummary = []
+  if (!scoreDomain) return res.status(404).json({ ok: false, message: 'no domain for customer' })
+  let score = null, grade = null, summary = []
   try {
     const r = await collectRiskFindingsForDomain(scoreDomain, { batchSize: 10, enrich: true })
     score = r.score; grade = r.grade
-    issueTypeSummary = (r.issueTypeSummary || []).filter((t) => String(t.severity).toLowerCase() !== 'info')
+    summary = (r.issueTypeSummary || []).filter((t) => String(t.severity).toLowerCase() !== 'info')
   } catch { /* SSC 실패 → 요약 없이 증적만 */ }
-  // 전달 대상(제외 안 된) 랩 증적 팩 + 각 대표 런 첨부(공개 라우트는 /api/lab/runs 접근 불가 → 번들에 실어줌).
+  summary.sort((a, b) => (b.score_impact ?? 0) - (a.score_impact ?? 0))
+  // 이 고객사의 대표 랩 런(canonical 매칭)
   const allPacks = await portal.getEvidencePacks()
-  const packs = (allPacks || []).filter((p) => p.excluded !== true
-    && (p.customer === cust.name || hostOfDom(p.sscLookupDomain || p.domain) === hostOfDom(scoreDomain)))
-  const packsWithRuns = await Promise.all(packs.map(async (p) => {
-    if (p.source === 'lab' && p.labRunId) return { ...p, run: await lab.getRun(p.labRunId).catch(() => null) }
-    return p
+  const labPacks = (allPacks || []).filter((p) => p.excluded !== true && p.source === 'lab' && p.labRunId
+    && (p.customer === customer || hostOfDom(p.sscLookupDomain || p.domain) === hostOfDom(scoreDomain)))
+  const runByCanon = {}
+  await Promise.all(labPacks.map(async (p) => { const run = await lab.getRun(p.labRunId).catch(() => null); if (run) runByCanon[canonType(p.issueType)] = run }))
+  const items = await Promise.all(summary.map(async (t) => {
+    const key = t.issue_type
+    const name = names[key] || key
+    const run = runByCanon[canonType(key)]
+    if (run && run.status === 'succeeded' && run.evidence) {
+      const ev = run.evidence
+      const [beforeImg, afterImg] = await Promise.all([imgToDataUri(ev.visual_before?.screenshot), imgToDataUri(ev.visual_after?.screenshot)])
+      return { key, name, severity: t.severity, scoreImpact: t.score_impact, kind: 'lab',
+        evidence: { beforeImg, afterImg, beforeLabel: ev.visual_before?.label, afterLabel: ev.visual_after?.label, diff: ev.technical_diff || [], tool: ev.raw_summary?.tool } }
+    }
+    const g = GUIDES[guideKey(key)] || {}
+    return { key, name, severity: t.severity, scoreImpact: t.score_impact, kind: 'guide',
+      guide: { direction: g.direction, steps: g.steps, sscRec: t.ssc_recommendation, sscDesc: t.ssc_description } }
   }))
-  res.json({ ok: true, report: { customer: cust.name, domain: scoreDomain, shownDomain, score, grade, issueTypeSummary, packs: packsWithRuns } })
+  const html = buildReportHtml({ customer, domain: scoreDomain, shownDomain, score, grade, generatedAt: new Date().toISOString().slice(0, 10), fontDataUri: fontDataUri(), items })
+  const fname = `SSC_리포트_${customer}_${new Date().toISOString().slice(0, 10)}.html`
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fname)}`)
+  auditReq(req, 'user', '리포트 HTML 내보내기', customer, 'Exported')
+  res.send(html)
 })
 
 // ---------------------------------------------------------------------

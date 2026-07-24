@@ -40,7 +40,7 @@ import {
 } from '../components/common.jsx'
 import { getScore, useScore } from '../lib/sscScore.js'
 import { getIssueTypeSummary, primeIssueTypeSummary } from '../lib/sscFindings.js'
-import { fetchSharedPack, fetchSharedReport, newShareFields, apiUpdateCustomer, fetchUsers, apiCreateUser, apiSetUserRole, apiUpdateUser, apiResetUserPassword, sscTokenStatus, sscTokenSet, sscTokenClear, fetchAudit } from '../lib/portalApi.js'
+import { fetchSharedPack, exportReportHtml, newShareFields, fetchUsers, apiCreateUser, apiSetUserRole, apiUpdateUser, apiResetUserPassword, sscTokenStatus, sscTokenSet, sscTokenClear, fetchAudit } from '../lib/portalApi.js'
 import { loadInterpretation, cachedInterpretation } from '../lib/interpret.js'
 import { catalogNameKo, factorNameKo, catalogEntry, canonicalIssueKey, catalogGroups, KO_SEVERITY } from '../data/sandboxCatalog.js'
 import { getRemediationGuide, GUIDE_ISSUE_TYPES, guideRowMeta } from '../data/remediationSteps.js'
@@ -1755,82 +1755,6 @@ export function SharedPackView({ token }) {
   )
 }
 
-// 통합 공개 리포트(#report-share=<token>) — 로그인 없이 고객사 전체 리포트 1개를 인쇄 가능한 단일 문서로 렌더.
-//  백엔드 번들(등급+조치 우선순위+증적 팩+랩 런)만으로 그린다(무인증이라 추가 API 호출 없음).
-export function PublicReportView({ token }) {
-  const [rep, setRep] = useState(undefined) // undefined=로딩, null=없음
-  useEffect(() => {
-    let alive = true
-    fetchSharedReport(token)
-      .then((r) => { if (alive) setRep(r || null) })
-      .catch(() => { if (alive) setRep(null) })
-    return () => { alive = false }
-  }, [token])
-
-  if (rep === undefined) return <div className="report-window"><div className="report-doc"><div className="rf-skeleton">리포트 불러오는 중…</div></div></div>
-  if (!rep) return <div className="report-window"><div className="report-doc"><EmptyState title="리포트를 찾을 수 없습니다" desc="링크가 만료되었거나 잘못된 주소입니다." /></div></div>
-
-  const today = new Date().toISOString().slice(0, 10)
-  const rows = rep.issueTypeSummary || []
-  const labPacks = (rep.packs || []).filter((p) => p.source === 'lab' && p.run)
-  const labFor = (issueType) => labPacks.find((p) => canonicalIssueKey(p.issueType) === canonicalIssueKey(issueType))
-  const deliveryCol = { header: '전달 형태', render: (r) => labFor(r.issue_type)
-    ? <span className="badge badge-soft badge-purple">조치 전후 증거</span>
-    : <span className="badge badge-soft badge-neutral">조치 가이드</span> }
-
-  return (
-    <div className="report-window">
-      <div className="report-doc customer-view">
-        <div className="cv-banner">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 16, color: '#fff', flexShrink: 0 }}>SS</div>
-            <div>
-              <div className="cv-kicker">SSC 파트너 · 보안 리스크 리포트</div>
-              <h1>{rep.customer}</h1>
-              <p>대상 도메인 <code className="inline-code">{rep.shownDomain || rep.domain}</code> · 발행일 {today}</p>
-            </div>
-          </div>
-          <div className="cv-banner-right">
-            <div className="cv-score">
-              <span className="cv-score-label">SecurityScorecard 보안등급</span>
-              <ScoreBadge score={rep.score} grade={rep.grade} />
-            </div>
-          </div>
-        </div>
-
-        <div className="report-deliver-actions cv-noprint" style={{ margin: '12px 0' }}>
-          <button className="btn btn-secondary" onClick={() => window.print()}>PDF 저장 / 인쇄</button>
-        </div>
-
-        <NoticeBox tone="warning" title="증적 성격 안내">
-          파트너 표준 검증랩 증적은 귀사 운영환경의 조치 완료를 의미하지 않습니다. 실제 Finding 해소 여부는
-          SecurityScorecard 재스캔 또는 공식 검증 절차를 통해 확인해야 합니다.
-        </NoticeBox>
-
-        {rows.length > 0
-          ? <IssueTypeSummary rows={rows} includeInfo={false} score={rep.score} grade={rep.grade} lastCol={deliveryCol} />
-          : <EmptyState title="표시할 리스크가 없습니다" desc={`${rep.customer}에 대해 수집된 SecurityScorecard 리스크가 없습니다.`} />}
-
-        {rows.length > 0 && (
-          <div className="report-item-sections">
-            {rows.map((r) => {
-              const lp = labFor(r.issue_type)
-              return (
-                <section key={r.issue_type} className="report-item-sec">
-                  <h2 className="report-item-title">{catalogNameKo(r.issue_type)}</h2>
-                  {lp
-                    ? <LabEvidenceSteps run={lp.run} flat />
-                    : <GuideSteps detail={guideRowMeta(r.issue_type)} flat />}
-                </section>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 // 고객 전달 드릴인용 — 검증랩과 동일한 5단계 증적 스테퍼(개요→조치 방법→조치 전/후→관측값·확인→마무리).
 // 팩의 labRunId로 실제 랩 런을 불러와 before/after 캡처를 그대로 노출한다.
 function LabEvidenceStepsBody({ pack, flat = false }) {
@@ -1948,22 +1872,21 @@ export function DeliveryReportViewer({ custName, app }) {
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(() => setToast({ tone: 'warning', text: `복사 실패 — 링크: ${url}` }))
     else done()
   }
-  // 통합 리포트 링크 — 고객사당 토큰 1개로 전체 리포트를 로그인 없이 열람. 개별 팩 링크 대신 이걸 메인 전달로 사용.
-  const [reportToken, setReportToken] = useState(null)
-  const copyReportLink = async () => {
-    const cust = customers.find((c) => c.name === custName)
-    if (!cust) { setToast({ tone: 'warning', text: '고객사 정보를 찾을 수 없습니다.' }); return }
-    let t = reportToken || cust.reportShareToken
-    if (!t) {
-      const f = newShareFields(); t = f.shareToken
-      try { await apiUpdateCustomer(cust.id, { reportShareToken: t, reportShareExpiresAt: f.shareExpiresAt, reportShareDomain: scoreDomain }) }
-      catch { setToast({ tone: 'warning', text: '링크 발급 저장에 실패했습니다(백엔드 상태 확인).' }); return }
-      setReportToken(t)
-    }
-    const url = `${location.origin}${location.pathname}#report-share=${t}`
-    const done = () => setToast({ tone: 'success', text: '클립보드에 복사됨 — 통합 리포트 링크(30일 유효, 로그인 없이 전체 리포트 열람)' })
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(() => setToast({ tone: 'warning', text: `복사 실패 — 링크: ${url}` }))
-    else done()
+  // 리포트 HTML 내보내기 — 백엔드가 자립형 단일 HTML(등급·조치 우선순위·항목별 증적/가이드, 폰트·이미지 임베드)을
+  //  생성해 다운로드. 이 파일 하나를 고객에게 전달(오프라인·로그인 불필요).
+  const [exporting, setExporting] = useState(false)
+  const exportReport = async () => {
+    setExporting(true)
+    try {
+      const names = Object.fromEntries((typeSummary || []).map((t) => [t.issue_type, catalogNameKo(t.issue_type)]))
+      const { blob, filename } = await exportReportHtml(custName, names)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = filename
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
+      setToast({ tone: 'success', text: '리포트 HTML을 저장했습니다 — 이 파일 하나를 고객에게 전달하세요.' })
+    } catch { setToast({ tone: 'warning', text: '리포트 생성에 실패했습니다(백엔드 상태 확인).' }) }
+    finally { setExporting(false) }
   }
 
   useEffect(() => {
@@ -2054,13 +1977,12 @@ export function DeliveryReportViewer({ custName, app }) {
             </div>
           </div>
           <div className="card" style={{ marginBottom: 12 }}>
-            <SectionTitle title="전달 방법" desc="통합 리포트 링크 1개로 전체 리포트를 전달하는 것을 권장합니다." />
+            <SectionTitle title="전달 방법" desc="자립형 리포트 HTML 파일 1개로 전체 리포트를 전달하는 것을 권장합니다." />
             <div className="report-deliver-actions">
-              {app?.can?.('evidence') && <button className="btn btn-primary" onClick={copyReportLink}>통합 리포트 링크 복사</button>}
-              <button className="btn btn-secondary" onClick={() => window.print()}>PDF (인쇄/저장)</button>
+              {app?.can?.('evidence') && <button className="btn btn-primary" onClick={exportReport} disabled={exporting}>{exporting ? '리포트 생성 중…' : '리포트 HTML 내보내기'}</button>}
               <a className="btn btn-secondary" href={buildMailto()} style={{ textDecoration: 'none' }} title={contactEmail ? `받는사람: ${contactEmail}` : '받는사람 직접 입력'}>이메일로 전달</a>
             </div>
-            <p className="hint-text"><b>통합 리포트 링크</b>: 로그인 없이 이 고객사의 전체 리포트(등급·조치 우선순위·항목별 증적/가이드)를 여는 링크 1개. 링크를 받은 고객이 화면에서 직접 PDF로 저장할 수 있습니다. · <b>이메일로 전달</b>은 저장한 PDF를 첨부해 발송하는 방식입니다(앱이 직접 발송하지 않음).</p>
+            <p className="hint-text"><b>리포트 HTML 내보내기</b>: 이 고객사의 전체 리포트(등급·조치 우선순위·항목 클릭 시 조치/증적)를 폰트·이미지까지 임베드한 <b>단일 HTML 파일</b>로 저장합니다. 서버·로그인 없이 열리며, 이 파일 하나를 <b>이메일로 전달</b>에 첨부해 발송하세요(앱이 직접 발송하지 않음).</p>
           </div>
           {app?.can?.('evidence') && (
             <div className="card">

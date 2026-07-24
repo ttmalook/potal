@@ -40,7 +40,6 @@ import {
   DeliveryReportViewer,
   AuditLog,
   SharedPackView,
-  PublicReportView,
   UsersAdmin
 } from './pages/Pages.jsx'
 import { LabStudio } from './pages/LabStudio.jsx'
@@ -90,12 +89,6 @@ export default function App() {
     const m = /[#&?]report=([^&]+)/.exec(window.location.hash + window.location.search)
     return m ? decodeURIComponent(m[1]) : null
   })
-  // 통합 공개 리포트(#report-share=<token>) — 로그인 없이 고객사 전체 리포트 1개 링크로 열람
-  const [reportShareId] = useState(() => {
-    if (typeof window === 'undefined') return null
-    const m = /[#&?]report-share=([^&]+)/.exec(window.location.hash + window.location.search)
-    return m ? decodeURIComponent(m[1]) : null
-  })
   const [view, setView] = useState('dashboard')
   const [param, setParam] = useState(null) // 상세 화면용 id
   // 모바일(≤900px)에서는 사이드바를 기본으로 접어(숨겨) 시작
@@ -131,15 +124,15 @@ export default function App() {
       .catch(() => setPersistMode('local'))
   }, [])
 
-  // 마운트: 공개 링크(#share·#report-share)가 아니면 세션 복원(무음 refresh) 시도
+  // 마운트: 공개 링크(#share)가 아니면 세션 복원(무음 refresh) 시도
   useEffect(() => {
-    if (shareId || reportShareId) return // 공개 뷰는 인증 불필요
+    if (shareId) return // 공개 뷰는 인증 불필요
     let alive = true
     refreshSession()
       .then((u) => { if (!alive) return; setUser(u); setAuthStatus('authed'); loadData() })
       .catch(() => { if (alive) setAuthStatus('anon') })
     return () => { alive = false }
-  }, [shareId, reportShareId, loadData])
+  }, [shareId, loadData])
 
   const onLogin = useCallback((u) => { setUser(u); setAuthStatus('authed'); loadData() }, [loadData])
   const doLogout = useCallback(async () => { await authLogout(); setUser(null); setAuthStatus('anon') }, [])
@@ -276,9 +269,8 @@ export default function App() {
     return acc
   }, {})
 
-  // 공개 링크로 접근 시: 포털 셸 없이 증적/리포트만 렌더 (인증 우회)
+  // 공개 링크로 접근 시: 포털 셸 없이 증적만 렌더 (인증 우회)
   if (shareId) return <SharedPackView token={shareId} />
-  if (reportShareId) return <PublicReportView token={reportShareId} />
   // 인증 게이트
   if (authStatus === 'checking') return <div className="auth-splash">세션 확인 중…</div>
   if (authStatus === 'anon') return <LoginView onSuccess={onLogin} />
