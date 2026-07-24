@@ -1213,6 +1213,22 @@
   background: rgba(255,255,255,0.15);
   color: #fff;
 }
+/* 통합 공개 리포트 — 항목별 섹션 */
+.report-item-sections { margin-top: 20px; display: flex; flex-direction: column; gap: 18px; }
+.report-item-sec {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+  background: #fff;
+}
+.report-item-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
 .cv-risk-card {
   background: #fff;
   border: 1px solid var(--border);

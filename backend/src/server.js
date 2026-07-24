@@ -814,6 +814,40 @@ app.get('/api/public/shared/:token', rateLimit({ windowMs: 60000, max: 30 }), as
   res.json({ ok: true, pack })
 })
 
+// 공개(무인증) 통합 리포트 — 고객사 토큰 1개로 전체 리포트 번들(등급+조치 우선순위+증적 팩+랩 런) 제공.
+const hostOfDom = (s) => String(s || '').replace(/^https?:\/\//, '').split('/')[0].split(':')[0].toLowerCase()
+app.get('/api/public/report/:token', rateLimit({ windowMs: 60000, max: 20 }), async (req, res) => {
+  const token = req.params.token
+  if (!token) return res.status(400).json({ ok: false, message: 'token required' })
+  const customers = await portal.getCustomers()
+  const cust = (customers || []).find((c) => c.reportShareToken === token)
+  if (!cust) return res.status(404).json({ ok: false, message: 'report not found' })
+  if (cust.reportShareExpiresAt && Date.now() > Date.parse(cust.reportShareExpiresAt)) {
+    return res.status(410).json({ ok: false, errorCode: 'LINK_EXPIRED', message: '만료된 링크입니다.' })
+  }
+  const domains = await portal.getDomains()
+  const dom = (domains || []).find((d) => d.customer === cust.name)
+  const scoreDomain = cust.reportShareDomain || (dom ? (dom.sscLookupDomain || String(dom.serviceEndpoint || dom.primary || '').split(':')[0]) : null)
+  const shownDomain = dom ? (dom.serviceEndpoint || dom.primary) : scoreDomain
+  if (!scoreDomain) return res.status(404).json({ ok: false, message: 'no domain for report' })
+  // SSC 등급 + 조치 우선순위(info 제외 전 유형). 실패해도 증적만으로 리포트 제공.
+  let score = null, grade = null, issueTypeSummary = []
+  try {
+    const r = await collectRiskFindingsForDomain(scoreDomain, { batchSize: 10, enrich: true })
+    score = r.score; grade = r.grade
+    issueTypeSummary = (r.issueTypeSummary || []).filter((t) => String(t.severity).toLowerCase() !== 'info')
+  } catch { /* SSC 실패 → 요약 없이 증적만 */ }
+  // 전달 대상(제외 안 된) 랩 증적 팩 + 각 대표 런 첨부(공개 라우트는 /api/lab/runs 접근 불가 → 번들에 실어줌).
+  const allPacks = await portal.getEvidencePacks()
+  const packs = (allPacks || []).filter((p) => p.excluded !== true
+    && (p.customer === cust.name || hostOfDom(p.sscLookupDomain || p.domain) === hostOfDom(scoreDomain)))
+  const packsWithRuns = await Promise.all(packs.map(async (p) => {
+    if (p.source === 'lab' && p.labRunId) return { ...p, run: await lab.getRun(p.labRunId).catch(() => null) }
+    return p
+  }))
+  res.json({ ok: true, report: { customer: cust.name, domain: scoreDomain, shownDomain, score, grade, issueTypeSummary, packs: packsWithRuns } })
+})
+
 // ---------------------------------------------------------------------
 // Validation Sandbox (Partner Lab PoC) — 참고용 증적 생성 (수집기: simulated|docker)
 // ---------------------------------------------------------------------

@@ -28,6 +28,8 @@ export const apiUpdateEvidencePack = (id, patch) => call(`/api/portal/evidence-p
 export const apiDeleteEvidencePack = (id) => call(`/api/portal/evidence-packs/${encodeURIComponent(id)}`, jsonOpts('DELETE'))
 // 공개(무인증) 게시 팩 조회 — 발행된 팩만 토큰으로 반환
 export const fetchSharedPack = (token) => call(`/api/public/shared/${encodeURIComponent(token)}`).then((d) => d.pack)
+// 공개(무인증) 통합 리포트 조회 — 고객사 토큰 1개로 전체 번들 반환
+export const fetchSharedReport = (token) => call(`/api/public/report/${encodeURIComponent(token)}`).then((d) => d.report)
 
 // 감사 로그(관리자 전용) — kind: all|user|security|system
 export const fetchAudit = (params = {}) => {

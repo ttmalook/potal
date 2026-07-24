@@ -617,6 +617,11 @@ const ALIASES = {
 
 // 비전문가용 한글 이름 (issue_type_key → 쉬운 한국어 명칭)
 const KO_ISSUE_NAMES = {
+  redirect_chain_contains_http: '리다이렉트 경로에 평문 HTTP 포함',
+  hosted_on_object_storage: '오브젝트 스토리지 직접 노출',
+  service_vuln_host_v3_medium: '취약점 보유 호스트 노출(중간)',
+  compromised_credentials_found: '유출 자격증명 발견',
+  service_pop3: 'POP3 서비스 노출',
   hsts_incorrect: 'HTTPS 강제(HSTS) 설정 미흡',
   cookie_missing_http_only: '쿠키 보호 옵션(HttpOnly) 누락',
   cookie_missing_secure_attribute: '쿠키 보호 옵션(Secure) 누락',
@@ -716,10 +721,20 @@ function repKey(issueTypeKey) {
 // issue_type → canonical(별칭·버전 병합) key. 드롭다운/목록 중복 제거용.
 export const canonicalIssueKey = (issueTypeKey) => repKey(issueTypeKey)
 
-// issue_type → 한글 명칭(별칭·버전 해석 포함). 없으면 display_name/원본 key로 폴백.
+// 미등록 원문키 최종 폴백 — 스네이크케이스 원문키를 고객 화면에 노출하지 않도록 사람이 읽을 형태로 정리.
+//  (예: redirect_chain_contains_http_v2 → "Redirect Chain Contains Http"). 한글명이 없을 때만 사용.
+function humanizeKey(issueTypeKey) {
+  return String(issueTypeKey || '')
+    .replace(/_v\d+$/, '')
+    .split('_').filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ') || '기타 리스크'
+}
+
+// issue_type → 한글 명칭(별칭·버전 해석 포함). 없으면 display_name, 그래도 없으면 humanize(원문키 미노출).
 export function catalogNameKo(issueTypeKey) {
   const rep = repKey(issueTypeKey)
-  return KO_ISSUE_NAMES[rep] || BY_KEY[rep]?.display_name || issueTypeKey
+  return KO_ISSUE_NAMES[rep] || BY_KEY[rep]?.display_name || humanizeKey(issueTypeKey)
 }
 
 // SSC 팩터 원값 → 한글 10대 리스크 명칭. 없으면 원값/— 폴백.
