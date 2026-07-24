@@ -80,6 +80,37 @@ function coverRows(items) {
   }).join('')
 }
 
+// 표지 상단 네트워크 노드 메시(정적·결정적) — 가는 선+점, 대부분 회색에 소수 포인트 컬러 + 아이콘 타일 3개.
+function buildMesh() {
+  let s = 20260724
+  const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff }
+  const W = 600, H = 300, cols = 7, rows = 4
+  const nodes = []
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    nodes.push({ x: +(20 + (c / (cols - 1)) * (W - 40) + (rnd() - 0.5) * 46).toFixed(1), y: +(24 + (r / (rows - 1)) * (H - 60) + (rnd() - 0.5) * 40).toFixed(1) })
+  }
+  const idx = (r, c) => r * cols + c
+  const lines = []
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (c < cols - 1 && rnd() > 0.22) lines.push([nodes[idx(r, c)], nodes[idx(r, c + 1)]])
+    if (r < rows - 1 && rnd() > 0.22) lines.push([nodes[idx(r, c)], nodes[idx(r + 1, c)]])
+    if (r < rows - 1 && c < cols - 1 && rnd() > 0.5) lines.push([nodes[idx(r, c)], nodes[idx(r + 1, c + 1)]])
+    if (r < rows - 1 && c > 0 && rnd() > 0.62) lines.push([nodes[idx(r, c)], nodes[idx(r + 1, c - 1)]])
+  }
+  const accent = { 4: '#4a90d9', 9: '#3bb0a0', 15: '#d9645a', 19: '#e0a83e', 23: '#4a90d9' }
+  const lineSvg = lines.map((l) => `<line x1="${l[0].x}" y1="${l[0].y}" x2="${l[1].x}" y2="${l[1].y}"/>`).join('')
+  const dotSvg = nodes.map((n, i) => accent[i]
+    ? `<circle cx="${n.x}" cy="${n.y}" r="5" fill="${accent[i]}"/>`
+    : `<circle cx="${n.x}" cy="${n.y}" r="3" fill="#b9c3d0"/>`).join('')
+  const tile = (x, y, color, glyph) => `<g transform="translate(${x},${y})"><rect x="-23" y="-23" width="46" height="46" rx="9" fill="${color}"/>${glyph}</g>`
+  const shield = '<path d="M0,-11 L10,-6 L10,1 C10,8 0,13 0,13 C0,13 -10,8 -10,1 L-10,-6 Z" fill="#fff"/>'
+  const globe = '<g fill="none" stroke="#fff" stroke-width="2"><circle r="11"/><ellipse rx="5" ry="11"/><line x1="-11" y1="0" x2="11" y2="0"/></g>'
+  const lock = '<g fill="#fff"><rect x="-8" y="-2" width="16" height="13" rx="2"/><path d="M-5,-2 V-6 a5,5 0 0 1 10,0 V-2" fill="none" stroke="#fff" stroke-width="2.4"/></g>'
+  const tiles = tile(250, 66, '#a9c23b', shield) + tile(372, 118, '#4a90d9', globe) + tile(300, 176, '#d9645a', lock)
+  return `<svg class="mesh" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g stroke="#dce2e9" stroke-width="1">${lineSvg}</g>${dotSvg}${tiles}</svg>`
+}
+const MESH_SVG = buildMesh()
+
 export function buildReportHtml(d) {
   const items = d.items || []
   const gc = gradeColor(d.score)
@@ -98,18 +129,15 @@ ${fontFace}
 *{box-sizing:border-box}
 body{margin:0;background:#f1f5f9;color:#0f172a;font-family:${fontStack};line-height:1.6;-webkit-font-smoothing:antialiased}
 .wrap{max-width:960px;margin:0 auto;padding:24px 20px 64px}
-/* ── 표지(마스트헤드) ── */
-.masthead{position:relative;overflow:hidden;background:#fff;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:64px 8vw;border-bottom:1px solid #eef2f7}
-.deco{position:absolute;inset:0;pointer-events:none;z-index:0}
-.sh{position:absolute}
-.sh.dot{border-radius:50%}
-.sh.ring{border-radius:50%;background:transparent}
-.sh.q{border-top-left-radius:100%}
-.sh.half{border-radius:100% 100% 0 0}
-.mast-inner{position:relative;z-index:1;max-width:640px}
-.mast-eyebrow{font-size:12.5px;letter-spacing:.16em;font-weight:800;color:#e07a7a;text-transform:uppercase}
-.mast-title{font-size:64px;line-height:1.02;font-weight:800;letter-spacing:-.01em;color:#17233f;margin:16px 0 0}
-.mast-rule{width:88px;height:6px;border-radius:3px;background:#17233f;margin:26px 0 30px}
+/* ── 표지(마스트헤드) — 테크 네트워크 메시 ── */
+.masthead{position:relative;overflow:hidden;background:#fff;min-height:100vh;display:flex;flex-direction:column;border-bottom:1px solid #eef2f7}
+.mesh-wrap{position:relative;height:44vh;min-height:270px;flex-shrink:0}
+.mesh{position:absolute;inset:0;width:100%;height:100%;display:block}
+.mast-inner{flex:1;padding:2vh 8vw 7vh;display:flex;flex-direction:column;justify-content:center;max-width:780px}
+.mast-eyebrow{font-size:12px;letter-spacing:.18em;font-weight:800;color:#94a3b8;text-transform:uppercase}
+.mast-title{font-size:60px;line-height:1.0;font-weight:800;letter-spacing:-.02em;color:#1f2937;margin:14px 0 0}
+.mast-sub{font-size:19px;font-weight:800;letter-spacing:.14em;color:#c3ccd8;margin-top:8px;text-transform:uppercase}
+.mast-rule{width:84px;height:5px;border-radius:3px;background:#1f2937;margin:24px 0 28px}
 .mast-score{display:flex;align-items:center;gap:18px;margin-bottom:44px}
 .mast-grade{width:92px;height:92px;border-radius:50%;border:6px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:40px;font-weight:800;flex-shrink:0}
 .mast-score-meta{display:flex;flex-direction:column}
@@ -120,7 +148,7 @@ body{margin:0;background:#f1f5f9;color:#0f172a;font-family:${fontStack};line-hei
 .mast-meta span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8;font-weight:700}
 .mast-meta b{font-size:15px;color:#17233f}
 .mast-meta code{font-size:14px;background:#f1f5f9;padding:1px 8px;border-radius:6px}
-@media(max-width:640px){.mast-title{font-size:42px}.masthead{padding:48px 32px}}
+@media(max-width:640px){.mast-title{font-size:40px}.mast-inner{padding:2vh 32px 6vh}.mesh-wrap{height:34vh}}
 .notice{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:14px 16px;margin:18px 0;font-size:13px;color:#92400e}
 .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px 22px;margin-top:16px}
 .card h3{margin:0 0 4px;font-size:16px}
@@ -183,19 +211,11 @@ table.diff tr.changed{background:#fafcff}
 </head>
 <body>
 <section class="masthead" id="masthead">
-  <div class="deco">
-    <span class="sh q"    style="width:190px;height:190px;background:#f7a6a6;top:-30px;right:8%"></span>
-    <span class="sh ring" style="width:150px;height:150px;border:14px solid #7cc3e6;top:60px;right:26%"></span>
-    <span class="sh dot"  style="width:46px;height:46px;background:#f4c95d;top:150px;right:6%"></span>
-    <span class="sh half" style="width:130px;height:65px;background:#8ed6a9;top:12px;right:20%"></span>
-    <span class="sh dot"  style="width:30px;height:30px;background:#f7a6a6;top:210px;right:30%"></span>
-    <span class="sh ring" style="width:96px;height:96px;border:12px solid #f4c95d;bottom:70px;left:-28px"></span>
-    <span class="sh q"    style="width:120px;height:120px;background:#7cc3e6;transform:rotate(180deg);bottom:-24px;right:10%"></span>
-    <span class="sh dot"  style="width:22px;height:22px;background:#8ed6a9;bottom:130px;left:12%"></span>
-  </div>
+  <div class="mesh-wrap">${MESH_SVG}</div>
   <div class="mast-inner">
-    <div class="mast-eyebrow">SecurityScorecard 파트너 · 보안 리스크 리포트</div>
-    <h1 class="mast-title">보안 리스크<br/>리포트</h1>
+    <div class="mast-eyebrow">SecurityScorecard 파트너</div>
+    <h1 class="mast-title">보안 리스크 리포트</h1>
+    <div class="mast-sub">Security Risk Report · ${esc(String(d.generatedAt).slice(0, 4))}</div>
     <div class="mast-rule"></div>
     <div class="mast-score">
       <div class="mast-grade" style="color:${gc}">${d.grade ? esc(d.grade) : '—'}</div>
