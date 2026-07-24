@@ -187,8 +187,7 @@ export function RiskFindingsRealPanel({ presetDomain = null, context = null, onF
   return (
     <div className="real-findings">
       <NoticeBox tone="info">
-        <b>Real SSC API · Read-only · factors-first</b> — SecurityScorecard active-issues를 수집한 정규화 결과입니다(읽기 전용).
-        자산 URL은 쿼리·자격증명을 제거한 <b>위생 처리</b> 후 표시합니다. API 조회에는 <b>SSC 조회 기준(host)</b>을 사용합니다.
+        SecurityScorecard active-issues를 수집한 결과입니다 (읽기 전용).
       </NoticeBox>
 
       {/* 수집 대상 컨텍스트 (고객사/Endpoint 선택 기반) */}
@@ -219,7 +218,7 @@ export function RiskFindingsRealPanel({ presetDomain = null, context = null, onF
 
       {/* 상태별 뷰 */}
       {status === 'idle' && (
-        <p className="hint-text" style={{ marginTop: 10 }}><b>SSC 리스크 수집</b>을 누르면 이 주소의 SecurityScorecard 리스크를 수집해 점수·조치 우선순위를 표시합니다. (읽기 전용)</p>
+        <p className="hint-text" style={{ marginTop: 10 }}>‘SSC 리스크 수집’을 눌러 이 주소의 리스크를 수집하세요.</p>
       )}
       {status === 'loading' && <div className="rf-skeleton">불러오는 중…</div>}
       {status === 'scope' && (

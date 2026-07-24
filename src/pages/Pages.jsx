@@ -258,7 +258,7 @@ export function Customers({ app }) {
     <div className="page">
       <PageHeader
         title="고객사"
-        desc="등록 고객사 및 점검 현황 — 모든 업무의 시작점 (고객사명 클릭 시 상세)"
+        desc="등록 고객사 및 점검 현황"
         actions={app.can?.('customers') ? <PrimaryButton onClick={app.openCustomerWizard}>+ 고객사 등록</PrimaryButton> : null}
       />
 
@@ -461,7 +461,7 @@ export function Domains({ app }) {
     <div className="page">
       <PageHeader
         title="도메인 등록"
-        desc="고객별 서비스 주소(Endpoint) · SSC 조회 도메인 · 접속 확인 URL · 점검 허용 범위 관리"
+        desc="고객별 서비스 주소 및 점검 범위 관리"
         actions={app.can?.('domains') ? <PrimaryButton onClick={() => app.openDomainModal()}>+ 도메인 등록</PrimaryButton> : null}
       />
       <FilterBar
@@ -584,7 +584,7 @@ export function RiskFindings({ app }) {
     <div className="page">
       <PageHeader
         title="리스크 점검"
-        desc="등록된 서비스 주소를 클릭하면 해당 주소의 SecurityScorecard 리스크(읽기 전용)를 수집·확인합니다."
+        desc="SecurityScorecard 리스크 수집·확인 (읽기 전용)"
         actions={
           ENABLE_DEV_MOCKS ? (
             <div className="mode-toggle">
@@ -720,9 +720,7 @@ export function FindingDetail({ findingId, app }) {
           ]}
         />
         <p className="guide-text" style={{ marginTop: 12, marginBottom: 0 }}>
-          본 Finding은 SecurityScorecard API를 통해 수집된 리스크 항목이며, 고객 도메인 외부 관측값과 <b>파트너 표준
-          검증랩 참고용 PoC 증적</b>을 결합하여 Evidence Pack으로 구성됩니다. 파트너 랩 증적은 고객 환경 조치 완료를
-          의미하지 않으며, 실제 Finding 해소 여부는 <b>SecurityScorecard 재스캔/공식 검증</b>으로 확인합니다.
+          SecurityScorecard 외부 관측값과 파트너 검증랩 참고 증적을 결합한 항목입니다.
         </p>
       </div>
 
@@ -948,7 +946,7 @@ export function GuideSteps({ detail, flat = false }) {
     sscLookupDomain: '<도메인>',
     domain: '<도메인>',
     guide: { direction: sharedGuide?.direction || '아래 절차대로 조치한 뒤 SecurityScorecard 재스캔으로 해소 여부를 확인합니다.', steps: guideSteps },
-    note: '이 문서는 파트너 표준 조치 가이드 — 일반 구성 기준입니다. 고객 시스템을 실제로 바꾸거나 검증한 것이 아니며, 실제 해소 여부는 SecurityScorecard 재스캔으로 확인합니다.'
+    note: '파트너 표준 조치 가이드 · 일반 구성 기준.'
   }
 
   // 유형 메타(가이드 고유 — 검증랩 run kv 대응)
@@ -1167,7 +1165,7 @@ export function RemediationGuides({ app = null, focusIssueType = null }) {
   const erows = applyFilters(domains, efilters, epCfg.filterFields, esearch, ['serviceEndpoint', 'sscLookupDomain', 'customer'])
   return (
     <div className="page">
-      <PageHeader title="조치 가이드" desc="고객사·서비스 주소를 클릭하면 그 대상의 조치 가이드가 열립니다. 검증랩 미지원 유형만 다룹니다(지원 유형은 검증랩에서 증적과 함께 제공). 일반 조치 기준 · 고객 환경 반영 전 내부 검토 필요." />
+      <PageHeader title="조치 가이드" desc="이슈 유형별 표준 조치 가이드 · 일반 구성 기준 (검증랩 미지원 유형)" />
       <FilterBar fields={epCfg.filterFields} filters={efilters} onChange={setEfilters} search={esearch} onSearchChange={setEsearch} searchPlaceholder="Endpoint · SSC 조회 기준 · 고객사 검색" resultCount={erows.length} />
       <div className="card no-pad">
         <DataTable columns={epCfg.columns} rows={erows} onRowClick={setTarget} renderCell={epCfg.renderCell} pageSize={10} />
@@ -1357,11 +1355,10 @@ export function ValidationSandbox({ app, focus = null }) {
     <div className="page">
       <PageHeader
         title="검증랩 (참고 시연)"
-        desc="등록된 서비스 주소를 클릭하면 해당 주소의 리스크 항목을 검증랩에서 재현해 조치 전·후 참고 증적을 만듭니다."
+        desc="리스크 항목을 검증랩에서 재현해 조치 전·후 참고 증적 생성"
       />
-      <NoticeBox tone="warning" title="이 기능의 역할 (Not Customer Environment Validation)">
-        Validation Sandbox는 고객 운영환경을 테스트하거나 조치 완료를 검증하는 기능이 아닙니다. 파트너 표준 검증랩에서
-        일반 조치 방향을 PoC로 시연하고 참고 증적을 생성하는 내부 기능입니다.
+      <NoticeBox tone="warning" title="파트너 검증랩 (참고 시연)">
+        고객 운영환경 검증이 아니라, 조치 방향을 재현·시연해 참고 증적을 생성하는 기능입니다.
       </NoticeBox>
 
       <FilterBar
@@ -1583,7 +1580,7 @@ export function EvidencePacks({ app }) {
 
   return (
     <div className="page">
-      <PageHeader title="증적 팩" desc="고객사·서비스 주소를 클릭하면 우측에서 그 고객사의 증적 팩(검증랩 증적 + 조치 권고 + 리스크)이 열립니다." />
+      <PageHeader title="증적 팩" desc="고객사별 증적 팩 (검증랩 증적 · 조치 권고 · 리스크)" />
       <FilterBar fields={epCfg.filterFields} filters={efilters} onChange={setEfilters} search={esearch} onSearchChange={setEsearch} searchPlaceholder="Endpoint · SSC 조회 기준 · 고객사 검색" resultCount={erows.length} />
       <div className="card no-pad">
         <DataTable columns={epCfg.columns} rows={erows} onRowClick={setTarget} renderCell={epCfg.renderCell} pageSize={10} />
@@ -1663,8 +1660,7 @@ function LabEvidenceStepsBody({ pack, flat = false }) {
   return (
     <>
       <NoticeBox tone="info">
-        파트너 검증랩에서 <b>같은 문제를 재현</b>해 <b>조치 전 → 조치 후</b>를 비교로 보여주는 참고 증적입니다.
-        고객 시스템을 실제로 바꾸거나 검증한 것은 아니며, 실제 해소 여부는 <b>SecurityScorecard 재스캔</b>으로 확인합니다.
+        파트너 검증랩에서 <b>조치 전 → 조치 후</b>를 재현한 참고 증적입니다.
       </NoticeBox>
       {status === 'loading' && <div className="rf-skeleton">랩 증적 불러오는 중…</div>}
       {status === 'error' && <NoticeBox tone="danger" title="증적 로드 실패">랩 실행 기록을 불러올 수 없습니다(Backend/랩 상태 확인).</NoticeBox>}
@@ -1707,7 +1703,7 @@ export function CustomerView({ app }) {
 
   return (
     <div className="page">
-      <PageHeader title="고객 전달" desc="전달 대상 고객사 목록 — 고객사를 클릭하면 새 창에 리포트 뷰어가 열립니다(리포트 검토 → 전달)." />
+      <PageHeader title="고객 전달" desc="전달 대상 고객사 목록" />
       <div className="card picker-card" style={{ marginBottom: 12 }}>
         <label className="field" style={{ maxWidth: 320 }}>
           <span className="field-label">검색</span>
@@ -2072,7 +2068,7 @@ export function UsersAdmin({ app }) {
   }
   return (
     <div className="page">
-      <PageHeader title="사용자 관리" desc="계정 생성·정보 수정·역할 관리 · SSC API 토큰(조직 공용) · 관리자 전용"
+      <PageHeader title="사용자 관리" desc="계정 · 역할 관리 · SSC API 토큰 · 관리자 전용"
         actions={status !== 'forbidden' ? <PrimaryButton onClick={openAdd}>+ 사용자 추가</PrimaryButton> : null} />
       {status === 'forbidden' && <NoticeBox tone="danger" title="권한 없음">관리자만 접근할 수 있습니다.</NoticeBox>}
       {status !== 'forbidden' && (
@@ -2153,7 +2149,7 @@ export function AuditLog() {
   }
   return (
     <div className="page">
-      <PageHeader title="감사 로그" desc="사용자 행위 · 보안(인증·권한 거부) · 시스템(운영/DB) 이벤트를 실제로 기록합니다." />
+      <PageHeader title="감사 로그" desc="사용자 · 보안 · 시스템 이벤트 기록" />
       {/* 종류는 표의 '종류' 컬럼(배지)에 표시되므로 상단 종류 필터는 두지 않는다 — 전체를 시간순으로 표시 */}
       <div className="hint-text" style={{ textAlign: 'right', margin: '2px 0 10px' }}>{status === 'ok' ? `${rows.length}건` : ''}</div>
       {status === 'loading' ? <div className="rf-skeleton">감사 로그 불러오는 중…</div>

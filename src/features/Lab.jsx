@@ -194,7 +194,7 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
         <span className="badge badge-soft badge-purple">참고용 · 고객환경 검증 아님</span>
       </div>
       <p className="hint-text" style={{ margin: '2px 0 8px' }}>
-        고객 시스템을 건드리지 않고, 파트너 검증랩에서 <b>같은 문제를 재현</b>해 <b>조치 전 → 조치 후</b>를 비교로 보여주는 참고 자료입니다.
+        같은 문제를 재현해 <b>조치 전 → 조치 후</b>를 비교로 보여줍니다.
       </p>
 
       {/* 1) 고객사 → Endpoint 선택 (드로어에서는 고정 Endpoint 컨텍스트) */}
