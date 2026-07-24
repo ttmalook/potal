@@ -60,8 +60,8 @@ export function packFromRun(run) {
 function evidenceStateLabel(run) {
   if (run.status === 'unsupported') return '가이드만 제공'
   if (run.status !== 'succeeded') return '실패'
-  const map = { 'Draft Evidence': '증적 준비', 'Evidence Candidate': '증적 후보', 'Added to Evidence Pack Draft': '증적 팩에 추가됨' }
-  return map[run.evidenceState] || '초안 증적'
+  const map = { 'Draft Evidence': '증적', 'Evidence Candidate': '증적 후보', 'Added to Evidence Pack Draft': '증적 팩에 추가됨' }
+  return map[run.evidenceState] || '증적'
 }
 // 실행 상태 라벨 (한글)
 function runStateLabel(run) {
@@ -693,7 +693,7 @@ export function LabEvidenceSteps({ run, flat = false }) {
 // Evidence 상세 — 대형 슬라이드오버(드로어). 섹션형 문서 레이아웃(탭 아님).
 export function EvidenceDrawer({ run, app, onClose }) {
   const saveCandidate = () => {
-    app?.showToast?.(`증적 후보로 저장 — ${run.id} (초안 증적)`)
+    app?.showToast?.(`증적 후보로 저장 — ${run.id}`)
   }
   // 조치 가이드 보기: 지원 항목은 2단계 '조치 방법'에 이미 포함 → 제거.
   // 증적 팩 담기: 재현 기록 표에서 다중선택으로 일원화 → 드로어 단건 버튼 제거.
@@ -710,7 +710,7 @@ export function EvidenceDrawer({ run, app, onClose }) {
       subtitle={`${run.id} · 점검 대상: ${run.accessUrl || run.serviceEndpoint || '—'} · SSC 조회: ${run.sscLookupDomain || run.domain || '—'} · 항목코드 ${run.issueType}`}
       badges={<>
         <span className="badge badge-soft badge-purple">참고용 시연</span>
-        <span className="badge badge-soft badge-purple">초안 증적</span>
+        <span className="badge badge-soft badge-purple">증적</span>
         <span className="badge badge-soft badge-neutral">고객환경 검증 아님</span>
         <span className="badge badge-soft badge-neutral">일반 가이드</span>
         <span className="badge badge-soft badge-neutral">읽기 전용</span>
