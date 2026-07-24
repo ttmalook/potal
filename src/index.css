@@ -11,10 +11,10 @@
 /* 글로벌 리셋 + 디자인 토큰 */
 :root {
   /* Color tokens */
-  --sidebar-bg: #ffffff;
-  --sidebar-bg-2: #ffffff;
-  --sidebar-hover: #f1f5f9;
-  --sidebar-active: #eff4ff;
+  --sidebar-bg: #eef1f6;
+  --sidebar-bg-2: #eef1f6;
+  --sidebar-hover: #e5e9f1;
+  --sidebar-active: #e2ecfd;
   --sidebar-text: #475569;
   --sidebar-text-muted: #94a3b8;
 

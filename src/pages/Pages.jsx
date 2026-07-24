@@ -132,6 +132,19 @@ export function Dashboard({ app }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customers.length, domains.length])
   const gradeColorOf = (sc) => sc == null ? '#cbd5e1' : sc >= 80 ? '#16a34a' : sc >= 60 ? '#f59e0b' : '#dc2626'
+  // 위험 우선: 점수 낮은(주의) 고객사부터. 미수집은 아래로.
+  const DB_TOPN = 5
+  const rankedCust = customers.map((c) => ({ c, s: scores[c.name], dom: custDomain(c) }))
+    .sort((a, b) => {
+      const as = a.s?.score, bs = b.s?.score
+      if (as == null && bs == null) return 0
+      if (as == null) return 1
+      if (bs == null) return -1
+      return as - bs
+    })
+  const gradeDist = { A: 0, B: 0, C: 0, D: 0, F: 0 }
+  rankedCust.forEach(({ s }) => { const g = s?.grade || (s?.score != null ? dbGrade(s.score) : null); if (g && gradeDist[g] != null) gradeDist[g]++ })
+  const gradeDistTotal = Object.values(gradeDist).reduce((a, b) => a + b, 0)
 
   // 최근 활동: 실제 감사 로그(사용자·시스템·보안). 관리자만 조회 가능 → 실패 시 안내.
   const [activity, setActivity] = useState([])
@@ -171,21 +184,28 @@ export function Dashboard({ app }) {
       {/* row 2: SSC 등급 · 위험도 · 파이프라인 */}
       <div className="db-row2">
         <div className="db-card">
-          <div className="db-ttl"><h3>SSC 보안등급</h3><span className="db-cap">고객사별</span></div>
+          <div className="db-ttl"><h3>SSC 보안등급</h3><span className="db-cap">위험 우선 · {customers.length}개사</span></div>
+          {gradeDistTotal > 0 && (
+            <div className="db-dist">
+              {['A', 'B', 'C', 'D', 'F'].map((g) => <span key={g} className={`db-dist-i g-${g}`}>{g}<b>{gradeDist[g]}</b></span>)}
+            </div>
+          )}
           <div className="db-grades">
-            {customers.length ? customers.map((c) => {
-              const s = scores[c.name]
+            {customers.length ? rankedCust.slice(0, DB_TOPN).map(({ c, s, dom }) => {
               const loading = s === undefined
               const gr = s?.grade || (s?.score != null ? dbGrade(s.score) : null)
               return (
                 <div key={c.id || c.name} className="db-grade-row">
                   <span className="db-grade-badge" style={{ background: gradeColorOf(s?.score) }}>{loading ? '…' : (gr || '—')}</span>
-                  <div className="db-grade-info"><b>{c.name}</b><span>{custDomain(c) || '—'}</span></div>
+                  <div className="db-grade-info"><b>{c.name}</b><span>{dom || '—'}</span></div>
                   <span className="db-grade-score">{s?.score != null ? s.score : '—'}<small>점</small></span>
                 </div>
               )
             }) : <EmptyState title="등록 고객사 없음" desc="고객사를 등록하면 등급이 표시됩니다." />}
           </div>
+          {customers.length > DB_TOPN && (
+            <button className="db-more" onClick={() => navigate('customers')}>전체 {customers.length}개사 보기 →</button>
+          )}
         </div>
 
         <div className="db-card">
