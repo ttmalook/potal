@@ -1269,7 +1269,7 @@ function EndpointGuideDrawer({ row, app, onClose }) {
           : scopeStatus === 'error'
             ? <NoticeBox tone="warning">리스크를 불러오지 못했습니다(조회 범위 밖일 수 있음).</NoticeBox>
             : scopedRows.length === 0
-              ? <NoticeBox tone="info">이 대상의 수집 리스크는 모두 <b>검증랩에서 지원</b>됩니다{labSupportedCount ? ` (${labSupportedCount}종)` : ''}. 조치 전·후 증적과 조치 방법은 <b>검증랩 (참고 시연)</b>에서 확인하세요. (조치 가이드는 검증랩 미지원 유형만 다룹니다)</NoticeBox>
+              ? <NoticeBox tone="info">이 대상의 수집 리스크는 모두 <b>검증랩에서 지원</b>됩니다{labSupportedCount ? ` (${labSupportedCount}종)` : ''}. 조치 전·후 증적과 조치 방법은 <b>검증랩</b>에서 확인하세요. (조치 가이드는 검증랩 미지원 유형만 다룹니다)</NoticeBox>
               : (
               <>
                 {labSupportedCount > 0 && (
@@ -1351,7 +1351,7 @@ export function ValidationSandbox({ app, focus = null }) {
   return (
     <div className="page">
       <PageHeader
-        title="검증랩 (참고 시연)"
+        title="검증랩"
         desc="리스크 항목을 검증랩에서 재현해 조치 전·후 참고 증적 생성"
       />
 
