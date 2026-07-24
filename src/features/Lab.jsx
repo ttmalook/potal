@@ -108,9 +108,11 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
       const d = await collectRiskFindings(ep.sscLookupDomain, { limit: 20, offset: 0, includeInfo: false })
       const list = d.issueTypeSummary || d.findings || [] // 전체 유형 목록 사용(finding 페이지네이션에 유형이 누락되지 않도록)
       setFindings(list)
-      const pick = focusIssueType ? list.find((x) => x.issue_type === focusIssueType) : null
-      setFindingKey((pick || list[0])?.issue_type || '')
-      setFindStatus(list.length ? 'success' : 'empty')
+      // 검증랩은 '지원(catalogEntry) · 비-info' 유형만 재현 대상. 미지원은 조치 가이드에서 다룸.
+      const supList = list.filter((x) => catalogEntry(x.issue_type) && String(x.severity).toLowerCase() !== 'info')
+      const pick = focusIssueType ? supList.find((x) => x.issue_type === focusIssueType) : null
+      setFindingKey((pick || supList[0])?.issue_type || '')
+      setFindStatus(supList.length ? 'success' : 'empty')
     } catch (e) {
       const code = e.payload?.errorCode
       if (code === 'SSC_SCOPE_DENIED') setFindStatus('scope')
@@ -126,9 +128,11 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
       const d = await collectRiskFindings(endpoint.sscLookupDomain, { limit: 20, offset: 0, includeInfo: false })
       const list = d.issueTypeSummary || d.findings || [] // 전체 유형 목록 사용(finding 페이지네이션에 유형이 누락되지 않도록)
       setFindings(list)
-      const pick = focusIssueType ? list.find((x) => x.issue_type === focusIssueType) : null
-      setFindingKey((pick || list[0])?.issue_type || '')
-      setFindStatus(list.length ? 'success' : 'empty')
+      // 검증랩은 '지원(catalogEntry) · 비-info' 유형만 재현 대상. 미지원은 조치 가이드에서 다룸.
+      const supList = list.filter((x) => catalogEntry(x.issue_type) && String(x.severity).toLowerCase() !== 'info')
+      const pick = focusIssueType ? supList.find((x) => x.issue_type === focusIssueType) : null
+      setFindingKey((pick || supList[0])?.issue_type || '')
+      setFindStatus(supList.length ? 'success' : 'empty')
     } catch (e) {
       const code = e.payload?.errorCode
       if (code === 'SSC_SCOPE_DENIED') setFindStatus('scope')
@@ -214,7 +218,7 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
             <span className="field-label">재현할 리스크 항목 선택</span>
             <select value={findingKey} onChange={(e) => setFindingKey(e.target.value)}>
               {/* canonical(별칭·버전) 기준 중복 제거 — csp_no_policy/_v2 등이 한 번만 표시 */}
-              {Object.values(findings.reduce((acc, f) => { const k = canonicalIssueKey(f.issue_type); if (!acc[k]) acc[k] = f; return acc }, {})).map((f, i) => (
+              {Object.values(findings.reduce((acc, f) => { const k = canonicalIssueKey(f.issue_type); if (!acc[k] && catalogEntry(f.issue_type) && String(f.severity).toLowerCase() !== 'info') acc[k] = f; return acc }, {})).map((f, i) => (
                 <option key={`${f.issue_type}-${i}`} value={f.issue_type}>
                   {catalogNameKo(f.issue_type)} · 위험도 {KO_SEVERITY[String(f.severity).toLowerCase()] || f.severity}
                 </option>

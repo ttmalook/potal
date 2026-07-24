@@ -1103,6 +1103,14 @@ export function GuideSteps({ detail, flat = false }) {
           </CodeBlock>
         </>)}
         {g.kind === 'steps' && g.example && (<><div className="mini-title">예시</div><CodeBlock lang={g.example.lang} label={g.example.lang} code={g.example.code} /></>)}
+        {g.kind === 'none' && (detail.sscRec || detail.sscDesc) && (<>
+          <div className="mini-title">SSC 공식 권고</div>
+          {detail.sscDesc && <p className="guide-text">{detail.sscDesc}</p>}
+          {detail.sscRec && <p className="guide-text">{detail.sscRec}</p>}
+        </>)}
+        {g.kind === 'none' && !detail.sscRec && !detail.sscDesc && (
+          <NoticeBox tone="info">이 유형은 표준 설정 조치 가이드가 준비되지 않았습니다. SecurityScorecard 권고와 해당 자산 점검을 참고하세요.</NoticeBox>
+        )}
         <EngineRemediation run={{ issueType }} />
       </>)
 
@@ -1290,6 +1298,7 @@ function EndpointGuideDrawer({ row, app, onClose }) {
   const sscLookupDomain = domLookup(row)
   const accessUrl = row.accessUrl || row.baseUrl || (serviceEndpoint ? `https://${serviceEndpoint}` : '')
   const [scopeKeys, setScopeKeys] = useState(null)
+  const [scopeRec, setScopeRec] = useState({}) // key -> { rec, desc } (SSC 공식 권고 — 빈 가이드 폴백)
   const [scopeStatus, setScopeStatus] = useState('loading') // loading|ok|empty|error
   const [detail, setDetail] = useState(null)
   const [filters, setFilters] = useState([])
@@ -1310,8 +1319,11 @@ function EndpointGuideDrawer({ row, app, onClose }) {
         //  (대형 도메인은 finding 247개 중 첫 100개에 일부 유형만 등장 → 유형 누락되던 버그 수정)
         const summary = await getIssueTypeSummary(sscLookupDomain)
         if (!alive) return
-        const keys = new Set((summary || []).map((t) => canonicalIssueKey(t.issue_type)))
-        setScopeKeys(keys); setScopeStatus(keys.size ? 'ok' : 'empty')
+        const nonInfo = (summary || []).filter((t) => String(t.severity).toLowerCase() !== 'info') // info 등급 제외(리스크 점검 목록과 일치)
+        const keys = new Set(nonInfo.map((t) => canonicalIssueKey(t.issue_type)))
+        const recMap = {}
+        nonInfo.forEach((t) => { const k = canonicalIssueKey(t.issue_type); recMap[k] = { rec: t.ssc_recommendation || null, desc: t.ssc_description || null } })
+        setScopeKeys(keys); setScopeRec(recMap); setScopeStatus(keys.size ? 'ok' : 'empty')
       } catch { if (alive) { setScopeKeys(null); setScopeStatus('error') } }
     })()
     return () => { alive = false }
@@ -1326,7 +1338,7 @@ function EndpointGuideDrawer({ row, app, onClose }) {
   const isLabSupported = (k) => LAB_KEYS.has(canonicalIssueKey(k))
   // 스코프의 '검증랩 미지원' 유형 전부를 가이드로 표시(가이드 카탈로그에 없어도 guideRowMeta 폴백). 대표 key 중복 제거.
   const scopedRows = scopeKeys
-    ? Object.values([...scopeKeys].filter((k) => !isLabSupported(k)).map((k) => guideRowMeta(k)).reduce((acc, r) => { if (r?.key && !acc[r.key]) acc[r.key] = r; return acc }, {}))
+    ? Object.values([...scopeKeys].filter((k) => !isLabSupported(k)).map((k) => ({ ...guideRowMeta(k), sscRec: scopeRec[k]?.rec || null, sscDesc: scopeRec[k]?.desc || null })).reduce((acc, r) => { if (r?.key && !acc[r.key]) acc[r.key] = r; return acc }, {}))
     : []
   const labSupportedCount = scopeKeys ? [...scopeKeys].filter((k) => isLabSupported(k)).length : 0
   const filterFields = [
