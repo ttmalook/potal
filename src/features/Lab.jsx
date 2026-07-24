@@ -60,7 +60,7 @@ export function packFromRun(run) {
 function evidenceStateLabel(run) {
   if (run.status === 'unsupported') return '가이드만 제공'
   if (run.status !== 'succeeded') return '실패'
-  const map = { 'Draft Evidence': '초안 증적', 'Evidence Candidate': '증적 후보', 'Added to Evidence Pack Draft': '증적 팩(초안) 포함' }
+  const map = { 'Draft Evidence': '증적 준비', 'Evidence Candidate': '증적 후보', 'Added to Evidence Pack Draft': '증적 팩에 추가됨' }
   return map[run.evidenceState] || '초안 증적'
 }
 // 실행 상태 라벨 (한글)
@@ -332,7 +332,7 @@ export function ValidationSandboxRealPanel({ app, fixedEndpoint = null, focusIss
           if (!picked.length) { app?.showToast?.({ tone: 'warning', text: '성공한 재현 기록만 증적 팩에 담을 수 있습니다.' }); return }
           picked.forEach((r) => app?.addEvidencePack?.(packFromRun(r)))
           setSelectedRuns(new Set())
-          app?.showToast?.({ tone: 'success', text: `${picked.length}건 증적 팩(초안)에 추가` })
+          app?.showToast?.({ tone: 'success', text: `${picked.length}건 증적 팩에 추가` })
         }
         return shownRuns.length ? (
         <div className="table-wrap">
